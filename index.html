@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Strict zoom disable for mobile -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, shrink-to-fit=no" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="msapplication-tap-highlight" content="no" />
+    <title>SocialChat</title>
+    <meta name="description" content="Real-time social messaging platform" />
+    <meta name="author" content="Mohammed Maaz A" />
+
+    <meta property="og:title" content="SocialChat" />
+    <meta property="og:description" content="Real-time social messaging platform" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@lovable_dev" />
+    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+
+    <!-- Preload critical resources -->
+    <link rel="preload" href="/src/index.css" as="style" />
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" as="style" />
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png" />
+    
+    <style>
+      /* Prevent zoom on mobile devices */
+      html, body {
+        touch-action: manipulation;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        -khtml-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        -webkit-text-size-adjust: 100%;
+        -ms-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+      }
+      
+      /* Prevent double-tap zoom */
+      * {
+        touch-action: manipulation;
+      }
+      
+      /* Allow text selection for inputs and textareas */
+      input, textarea, [contenteditable] {
+        -webkit-user-select: text;
+        -moz-user-select: text;
+        -ms-user-select: text;
+        user-select: text;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    
+    <script>
+      // Additional zoom prevention
+      document.addEventListener('gesturestart', function (e) {
+        e.preventDefault();
+      });
+      
+      document.addEventListener('gesturechange', function (e) {
+        e.preventDefault();
+      });
+      
+      document.addEventListener('gestureend', function (e) {
+        e.preventDefault();
+      });
+      
+      // Prevent pinch zoom
+      let lastTouchEnd = 0;
+      document.addEventListener('touchend', function (event) {
+        const now = (new Date()).getTime();
+        if (now - lastTouchEnd <= 300) {
+          event.preventDefault();
+        }
+        lastTouchEnd = now;
+      }, false);
+      
+      // Prevent zoom on double tap
+      let lastTouchTime = 0;
+      document.addEventListener('touchstart', function(event) {
+        const now = Date.now();
+        if (now - lastTouchTime <= 300) {
+          event.preventDefault();
+        }
+        lastTouchTime = now;
+      });
+    </script>
+  </body>
+</html>
