@@ -59,7 +59,9 @@ export function Friends() {
         .channel('friends-realtime')
         .on('postgres_changes', 
           { event: '*', schema: 'public', table: 'friends' }, 
-          () => {
+          (payload) => {
+            console.log('Friends table change:', payload);
+            // Refresh all friend data when any change occurs
             fetchFriends();
             fetchFriendRequests();
             fetchSuggestedFriends();
@@ -95,6 +97,7 @@ export function Friends() {
           created_at,
           sender_id,
           receiver_id,
+          status,
           sender_profile:profiles!friends_sender_id_fkey(id, name, username, avatar),
           receiver_profile:profiles!friends_receiver_id_fkey(id, name, username, avatar)
         `)
@@ -290,39 +293,65 @@ export function Friends() {
 
   const removeFriend = async (friendId: string) => {
     try {
-      // Immediately remove from UI for instant feedback
-      setFriends(prev => prev.filter(friend => friend.friend_id !== friendId));
-      setShowRemoveDialog({show: false, friend: null});
+      if (!friendId) {
+        console.error('No friend ID provided');
+        return;
+      }
 
-      // Delete from database - this will trigger real-time updates in Messages
+      console.log('Removing friend with ID:', friendId);
+
+      // Delete the friendship record from database
       const { error } = await supabase
         .from('friends')
         .delete()
         .eq('id', friendId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error removing friend:', error);
+        throw error;
+      }
+
+      console.log('Friend removed from database successfully');
+
+      // Immediately update UI
+      setFriends(prev => prev.filter(friend => friend.friend_id !== friendId));
+      setShowRemoveDialog({show: false, friend: null});
+
+      // Create notification for the removed friend
+      const removedFriend = friends.find(f => f.friend_id === friendId);
+      if (removedFriend && currentUser) {
+        try {
+          // Get current user's profile for notification
+          const { data: currentUserProfile } = await supabase
+            .from('profiles')
+            .select('name')
+            .eq('id', currentUser.id)
+            .single();
+
+          const userName = currentUserProfile?.name || 'Someone';
+
+          await supabase
+            .from('notifications')
+            .insert({
+              user_id: removedFriend.id,
+              type: 'friend_removed',
+              content: `${userName} removed you from their friends list`,
+              read: false
+            });
+        } catch (notifError) {
+          console.log('Notification creation handled:', notifError);
+        }
+      }
 
       toast({
         title: 'Friend removed',
         description: 'Friend has been removed from your list and chat access blocked',
       });
 
-      // Create notification for the removed friend
-      const removedFriend = friends.find(f => f.friend_id === friendId);
-      if (removedFriend && currentUser) {
-        try {
-          await supabase
-            .from('notifications')
-            .insert({
-              user_id: removedFriend.id,
-              type: 'friend_removed',
-              content: `${currentUser.email?.split('@')[0] || 'Someone'} removed you from their friends list`,
-              read: false
-            });
-        } catch (notifError) {
-          console.log('Notification creation handled');
-        }
-      }
+      // Force refresh to ensure consistency
+      setTimeout(() => {
+        fetchFriends();
+      }, 1000);
 
     } catch (error) {
       console.error('Error removing friend:', error);
@@ -484,7 +513,7 @@ export function Friends() {
             <TabsTrigger value="friends" className="font-pixelated text-xs relative">
               Friends
               {friends.length > 0 && (
-                <Badge variant="secondary\" className="ml-2 h-4 w-4 p-0 text-xs">
+                <Badge variant="secondary" className="ml-2 h-4 w-4 p-0 text-xs">
                   {friends.length}
                 </Badge>
               )}
@@ -492,7 +521,7 @@ export function Friends() {
             <TabsTrigger value="requests" className="font-pixelated text-xs relative">
               Requests
               {requests.length > 0 && (
-                <Badge variant="destructive\" className="ml-2 h-4 w-4 p-0 text-xs animate-pulse">
+                <Badge variant="destructive" className="ml-2 h-4 w-4 p-0 text-xs animate-pulse">
                   {requests.length}
                 </Badge>
               )}
@@ -500,7 +529,7 @@ export function Friends() {
             <TabsTrigger value="suggested" className="font-pixelated text-xs relative">
               Suggested
               {suggested.length > 0 && (
-                <Badge variant="outline\" className="ml-2 h-4 w-4 p-0 text-xs">
+                <Badge variant="outline" className="ml-2 h-4 w-4 p-0 text-xs">
                   {suggested.length}
                 </Badge>
               )}
@@ -606,7 +635,14 @@ export function Friends() {
             <AlertDialogFooter>
               <AlertDialogCancel className="font-pixelated text-xs">Cancel</AlertDialogCancel>
               <AlertDialogAction
-                onClick={() => showRemoveDialog.friend?.friend_id && removeFriend(showRemoveDialog.friend.friend_id)}
+                onClick={() => {
+                  if (showRemoveDialog.friend?.friend_id) {
+                    console.log('Removing friend with friend_id:', showRemoveDialog.friend.friend_id);
+                    removeFriend(showRemoveDialog.friend.friend_id);
+                  } else {
+                    console.error('No friend_id found for removal');
+                  }
+                }}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-pixelated text-xs"
               >
                 Remove Friend

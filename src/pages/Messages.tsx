@@ -116,6 +116,7 @@ export function Messages() {
 
       return !!friendship;
     } catch (error) {
+      console.log('Friendship check:', error);
       return false;
     }
   };
@@ -128,7 +129,10 @@ export function Messages() {
 
       // Check if still friends before loading messages
       const stillFriends = await checkIfFriendsStillConnected(friendId);
+      console.log('Still friends check:', stillFriends, 'for friend:', friendId);
+      
       if (!stillFriends) {
+        console.log('No longer friends, marking as blocked');
         // Update friend status to blocked
         setFriends(prev => 
           prev.map(f => 
@@ -193,7 +197,13 @@ export function Messages() {
     // Double-check friendship status before sending
     const stillFriends = await checkIfFriendsStillConnected(selectedFriend.id);
     if (!stillFriends) {
+      console.log('Friendship ended, blocking chat');
       setSelectedFriend(prev => prev ? { ...prev, isBlocked: true } : null);
+      setFriends(prev => 
+        prev.map(f => 
+          f.id === selectedFriend.id ? { ...f, isBlocked: true } : f
+        )
+      );
       toast({
         variant: 'destructive',
         title: 'Cannot send message',
@@ -320,9 +330,9 @@ export function Messages() {
         )
         .subscribe();
 
-      // Listen for friend removals
+      // Listen for friend removals in real-time
       const friendsChannel = supabase
-        .channel(`friends-${selectedFriend.id}-${currentUser.id}`)
+        .channel(`friends-status-${selectedFriend.id}-${currentUser.id}`)
         .on('postgres_changes',
           {
             event: 'DELETE',
@@ -330,11 +340,13 @@ export function Messages() {
             table: 'friends'
           },
           (payload) => {
+            console.log('Friend deletion detected:', payload);
             // Check if this deletion affects current conversation
             const deletedFriend = payload.old;
             if ((deletedFriend.sender_id === currentUser.id && deletedFriend.receiver_id === selectedFriend.id) ||
                 (deletedFriend.sender_id === selectedFriend.id && deletedFriend.receiver_id === currentUser.id)) {
-              // Mark friend as blocked
+              console.log('Current conversation affected by friend removal');
+              // Mark friend as blocked immediately
               setSelectedFriend(prev => prev ? { ...prev, isBlocked: true } : null);
               setFriends(prev => 
                 prev.map(f => 
