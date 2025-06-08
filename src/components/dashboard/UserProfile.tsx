@@ -380,33 +380,30 @@ export default function UserProfile() {
       {/* Avatar Viewer Dialog */}
       <Dialog open={showAvatarViewer} onOpenChange={setShowAvatarViewer}>
         <DialogContent className="max-w-lg mx-auto p-0 bg-black border-none overflow-hidden">
-          <div className="relative w-full h-[500px] flex flex-col">
-            {/* Header */}
-            <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Avatar className="w-8 h-8 border border-white">
-                  {user.avatar ? (
-                    <AvatarImage src={user.avatar} alt={user.name} />
-                  ) : (
-                    <AvatarFallback className="bg-social-dark-green text-white font-pixelated text-xs">
-                      {user.name?.substring(0, 2).toUpperCase() || 'U'}
-                    </AvatarFallback>
-                  )}
-                </Avatar>
-                <p className="text-white font-pixelated text-sm">
-                  {user.name}
-                </p>
-              </div>
-              <Button
-                onClick={() => setShowAvatarViewer(false)}
-                size="icon"
-                variant="ghost"
-                className="text-white hover:bg-white/20 h-8 w-8"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+          <DialogHeader className="absolute top-4 left-4 right-4 z-10 flex flex-row items-center justify-between space-y-0">
+            <DialogTitle className="text-white font-pixelated text-sm flex items-center gap-2">
+              <Avatar className="w-8 h-8 border border-white">
+                {user.avatar ? (
+                  <AvatarImage src={user.avatar} alt={user.name} />
+                ) : (
+                  <AvatarFallback className="bg-social-dark-green text-white font-pixelated text-xs">
+                    {user.name?.substring(0, 2).toUpperCase() || 'U'}
+                  </AvatarFallback>
+                )}
+              </Avatar>
+              {user.name}
+            </DialogTitle>
+            <Button
+              onClick={() => setShowAvatarViewer(false)}
+              size="icon"
+              variant="ghost"
+              className="text-white hover:bg-white/20 h-8 w-8"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </DialogHeader>
 
+          <div className="relative w-full h-[500px] flex flex-col">
             {/* Profile Picture */}
             <div className="flex-1 flex items-center justify-center p-4">
               {user.avatar ? (

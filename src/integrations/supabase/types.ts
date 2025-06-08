@@ -258,6 +258,47 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          content: string
+          created_at: string
+          deleted_at: string | null
+          id: string
+          read: boolean
+          reference_id: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          read?: boolean
+          reference_id?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          read?: boolean
+          reference_id?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       posts: {
         Row: {
           content: string
@@ -299,28 +340,34 @@ export type Database = {
       profiles: {
         Row: {
           avatar: string | null
+          color_theme: string | null
           created_at: string
           email: string | null
           id: string
           name: string
+          theme_preference: string | null
           updated_at: string
           username: string
         }
         Insert: {
           avatar?: string | null
+          color_theme?: string | null
           created_at?: string
           email?: string | null
           id: string
           name: string
+          theme_preference?: string | null
           updated_at?: string
           username: string
         }
         Update: {
           avatar?: string | null
+          color_theme?: string | null
           created_at?: string
           email?: string | null
           id?: string
           name?: string
+          theme_preference?: string | null
           updated_at?: string
           username?: string
         }
