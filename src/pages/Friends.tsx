@@ -463,7 +463,7 @@ export function Friends() {
             <TabsTrigger value="friends" className="font-pixelated text-xs relative">
               Friends
               {friends.length > 0 && (
-                <Badge variant="secondary" className="ml-2 h-4 w-4 p-0 text-xs">
+                <Badge variant="secondary\" className="ml-2 h-4 w-4 p-0 text-xs">
                   {friends.length}
                 </Badge>
               )}
@@ -471,7 +471,7 @@ export function Friends() {
             <TabsTrigger value="requests" className="font-pixelated text-xs relative">
               Requests
               {requests.length > 0 && (
-                <Badge variant="destructive" className="ml-2 h-4 w-4 p-0 text-xs animate-pulse">
+                <Badge variant="destructive\" className="ml-2 h-4 w-4 p-0 text-xs animate-pulse">
                   {requests.length}
                 </Badge>
               )}
@@ -479,7 +479,7 @@ export function Friends() {
             <TabsTrigger value="suggested" className="font-pixelated text-xs relative">
               Suggested
               {suggested.length > 0 && (
-                <Badge variant="outline" className="ml-2 h-4 w-4 p-0 text-xs">
+                <Badge variant="outline\" className="ml-2 h-4 w-4 p-0 text-xs">
                   {suggested.length}
                 </Badge>
               )}
