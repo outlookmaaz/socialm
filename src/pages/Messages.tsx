@@ -116,7 +116,7 @@ export function Messages() {
 
       return !!friendship;
     } catch (error) {
-      console.log('Friendship check:', error);
+      console.log('Friendship check - no longer friends:', error);
       return false;
     }
   };

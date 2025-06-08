@@ -31,6 +31,8 @@ interface Friend {
   status: 'accepted' | 'pending' | 'suggested';
   created_at: string;
   friend_id?: string;
+  sender_id?: string;
+  receiver_id?: string;
 }
 
 export function Friends() {
@@ -62,9 +64,11 @@ export function Friends() {
           (payload) => {
             console.log('Friends table change:', payload);
             // Refresh all friend data when any change occurs
-            fetchFriends();
-            fetchFriendRequests();
-            fetchSuggestedFriends();
+            setTimeout(() => {
+              fetchFriends();
+              fetchFriendRequests();
+              fetchSuggestedFriends();
+            }, 500);
           }
         )
         .subscribe();
@@ -90,6 +94,8 @@ export function Friends() {
     try {
       if (!currentUser) return;
 
+      console.log('Fetching friends for user:', currentUser.id);
+
       const { data, error } = await supabase
         .from('friends')
         .select(`
@@ -104,7 +110,12 @@ export function Friends() {
         .eq('status', 'accepted')
         .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching friends:', error);
+        throw error;
+      }
+
+      console.log('Raw friends data:', data);
 
       const friendsList = data?.map(friendship => {
         const isCurrentUserSender = friendship.sender_id === currentUser.id;
@@ -119,13 +130,17 @@ export function Friends() {
           avatar: friendProfile.avatar,
           status: 'accepted' as const,
           created_at: friendship.created_at,
-          friend_id: friendship.id
+          friend_id: friendship.id,
+          sender_id: friendship.sender_id,
+          receiver_id: friendship.receiver_id
         };
       }) || [];
 
+      console.log('Processed friends list:', friendsList);
       setFriends(friendsList);
     } catch (error) {
       console.error('Error fetching friends:', error);
+      setFriends([]);
     }
   };
 
@@ -291,56 +306,71 @@ export function Friends() {
     }
   };
 
-  const removeFriend = async (friendId: string) => {
+  const removeFriend = async (friend: Friend) => {
     try {
-      if (!friendId) {
-        console.error('No friend ID provided');
+      if (!friend.friend_id || !currentUser) {
+        console.error('No friend ID or current user provided');
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Unable to remove friend - missing information',
+        });
         return;
       }
 
-      console.log('Removing friend with ID:', friendId);
+      console.log('Removing friend:', {
+        friendId: friend.friend_id,
+        friendUserId: friend.id,
+        currentUserId: currentUser.id
+      });
 
-      // Delete the friendship record from database
-      const { error } = await supabase
+      // First, try to delete using the friendship ID
+      let { error } = await supabase
         .from('friends')
         .delete()
-        .eq('id', friendId);
+        .eq('id', friend.friend_id);
 
+      // If that fails, try alternative approach using user IDs
       if (error) {
-        console.error('Database error removing friend:', error);
-        throw error;
+        console.log('First deletion failed, trying alternative approach:', error);
+        
+        const { error: altError } = await supabase
+          .from('friends')
+          .delete()
+          .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${friend.id}),and(sender_id.eq.${friend.id},receiver_id.eq.${currentUser.id})`);
+
+        if (altError) {
+          console.error('Alternative deletion also failed:', altError);
+          throw altError;
+        }
       }
 
       console.log('Friend removed from database successfully');
 
       // Immediately update UI
-      setFriends(prev => prev.filter(friend => friend.friend_id !== friendId));
+      setFriends(prev => prev.filter(f => f.id !== friend.id));
       setShowRemoveDialog({show: false, friend: null});
 
       // Create notification for the removed friend
-      const removedFriend = friends.find(f => f.friend_id === friendId);
-      if (removedFriend && currentUser) {
-        try {
-          // Get current user's profile for notification
-          const { data: currentUserProfile } = await supabase
-            .from('profiles')
-            .select('name')
-            .eq('id', currentUser.id)
-            .single();
+      try {
+        const { data: currentUserProfile } = await supabase
+          .from('profiles')
+          .select('name')
+          .eq('id', currentUser.id)
+          .single();
 
-          const userName = currentUserProfile?.name || 'Someone';
+        const userName = currentUserProfile?.name || 'Someone';
 
-          await supabase
-            .from('notifications')
-            .insert({
-              user_id: removedFriend.id,
-              type: 'friend_removed',
-              content: `${userName} removed you from their friends list`,
-              read: false
-            });
-        } catch (notifError) {
-          console.log('Notification creation handled:', notifError);
-        }
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: friend.id,
+            type: 'friend_removed',
+            content: `${userName} removed you from their friends list`,
+            read: false
+          });
+      } catch (notifError) {
+        console.log('Notification creation handled:', notifError);
       }
 
       toast({
@@ -360,7 +390,7 @@ export function Friends() {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Failed to remove friend',
+        description: 'Failed to remove friend. Please try again.',
       });
     }
   };
@@ -513,7 +543,7 @@ export function Friends() {
             <TabsTrigger value="friends" className="font-pixelated text-xs relative">
               Friends
               {friends.length > 0 && (
-                <Badge variant="secondary\" className="ml-2 h-4 w-4 p-0 text-xs">
+                <Badge variant="secondary" className="ml-2 h-4 w-4 p-0 text-xs">
                   {friends.length}
                 </Badge>
               )}
@@ -521,7 +551,7 @@ export function Friends() {
             <TabsTrigger value="requests" className="font-pixelated text-xs relative">
               Requests
               {requests.length > 0 && (
-                <Badge variant="destructive\" className="ml-2 h-4 w-4 p-0 text-xs animate-pulse">
+                <Badge variant="destructive" className="ml-2 h-4 w-4 p-0 text-xs animate-pulse">
                   {requests.length}
                 </Badge>
               )}
@@ -529,7 +559,7 @@ export function Friends() {
             <TabsTrigger value="suggested" className="font-pixelated text-xs relative">
               Suggested
               {suggested.length > 0 && (
-                <Badge variant="outline\" className="ml-2 h-4 w-4 p-0 text-xs">
+                <Badge variant="outline" className="ml-2 h-4 w-4 p-0 text-xs">
                   {suggested.length}
                 </Badge>
               )}
@@ -636,11 +666,8 @@ export function Friends() {
               <AlertDialogCancel className="font-pixelated text-xs">Cancel</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => {
-                  if (showRemoveDialog.friend?.friend_id) {
-                    console.log('Removing friend with friend_id:', showRemoveDialog.friend.friend_id);
-                    removeFriend(showRemoveDialog.friend.friend_id);
-                  } else {
-                    console.error('No friend_id found for removal');
+                  if (showRemoveDialog.friend) {
+                    removeFriend(showRemoveDialog.friend);
                   }
                 }}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-pixelated text-xs"
