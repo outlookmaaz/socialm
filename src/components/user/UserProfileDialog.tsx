@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -28,14 +27,14 @@ export function UserProfileDialog({ open, onOpenChange, user }: UserProfileDialo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md mx-auto p-0 overflow-hidden">
+      <DialogContent className="max-w-md mx-auto p-0 overflow-hidden animate-in zoom-in-95 duration-200">
         <div className="relative">
           {/* Close button */}
           <Button
             onClick={() => onOpenChange(false)}
             size="icon"
             variant="ghost"
-            className="absolute top-2 right-2 z-10 text-gray-600 hover:bg-gray-100 h-8 w-8"
+            className="absolute top-2 right-2 z-10 text-gray-600 hover:bg-gray-100 h-8 w-8 rounded-full"
           >
             <X className="h-4 w-4" />
           </Button>
@@ -46,7 +45,7 @@ export function UserProfileDialog({ open, onOpenChange, user }: UserProfileDialo
               <img
                 src={user.avatar}
                 alt={user.name}
-                className="w-48 h-48 rounded-full object-cover border-4 border-white shadow-lg"
+                className="w-48 h-48 rounded-full object-cover border-4 border-white shadow-lg hover:scale-105 transition-transform duration-200"
               />
             ) : (
               <div className="w-48 h-48 rounded-full bg-social-dark-green flex items-center justify-center border-4 border-white shadow-lg">

@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Camera, Edit, Save, X, Heart, Trash2, Palette } from 'lucide-react';
+import { Camera, Edit, Save, X, Heart, Trash2, Palette, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -34,6 +34,7 @@ export default function UserProfile() {
   const [isEditing, setIsEditing] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showAvatarViewer, setShowAvatarViewer] = useState(false);
   const [editForm, setEditForm] = useState({
     name: '',
     username: ''
@@ -233,7 +234,10 @@ export default function UserProfile() {
       <Card className="card-gradient">
         <CardHeader className="text-center pb-3">
           <div className="relative inline-block">
-            <Avatar className="w-16 h-16 mx-auto mb-2 border-2 border-social-green">
+            <Avatar 
+              className="w-16 h-16 mx-auto mb-2 border-2 border-social-green cursor-pointer hover:scale-105 transition-transform"
+              onClick={() => setShowAvatarViewer(true)}
+            >
               {user?.avatar ? (
                 <AvatarImage src={user.avatar} alt={user.name} />
               ) : (
@@ -372,6 +376,56 @@ export default function UserProfile() {
           </p>
         </CardContent>
       </Card>
+
+      {/* Avatar Viewer Dialog */}
+      <Dialog open={showAvatarViewer} onOpenChange={setShowAvatarViewer}>
+        <DialogContent className="max-w-lg mx-auto p-0 bg-black border-none overflow-hidden">
+          <div className="relative w-full h-[500px] flex flex-col">
+            {/* Header */}
+            <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Avatar className="w-8 h-8 border border-white">
+                  {user.avatar ? (
+                    <AvatarImage src={user.avatar} alt={user.name} />
+                  ) : (
+                    <AvatarFallback className="bg-social-dark-green text-white font-pixelated text-xs">
+                      {user.name?.substring(0, 2).toUpperCase() || 'U'}
+                    </AvatarFallback>
+                  )}
+                </Avatar>
+                <p className="text-white font-pixelated text-sm">
+                  {user.name}
+                </p>
+              </div>
+              <Button
+                onClick={() => setShowAvatarViewer(false)}
+                size="icon"
+                variant="ghost"
+                className="text-white hover:bg-white/20 h-8 w-8"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Profile Picture */}
+            <div className="flex-1 flex items-center justify-center p-4">
+              {user.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt={`${user.name}'s profile picture`}
+                  className="max-w-full max-h-full object-contain rounded-lg"
+                />
+              ) : (
+                <div className="w-64 h-64 rounded-full bg-social-dark-green flex items-center justify-center">
+                  <span className="text-white font-pixelated text-4xl">
+                    {user.name?.substring(0, 2).toUpperCase() || 'U'}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Account Dialog */}
       <DeleteAccountDialog

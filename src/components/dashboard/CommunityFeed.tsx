@@ -8,6 +8,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { ImageViewer } from '@/components/ui/image-viewer';
+import { UserProfileDialog } from '@/components/user/UserProfileDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -79,6 +80,8 @@ export function CommunityFeed() {
   const [likingPosts, setLikingPosts] = useState<{ [key: string]: boolean }>({});
   const [expandedComments, setExpandedComments] = useState<{ [key: string]: boolean }>({});
   const [showCommentBox, setShowCommentBox] = useState<{ [key: string]: boolean }>({});
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [showUserDialog, setShowUserDialog] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const { toast } = useToast();
@@ -104,6 +107,30 @@ export function CommunityFeed() {
         ...prev,
         [postId]: true
       }));
+    }
+  };
+
+  const handleUserClick = async (userId: string, username: string) => {
+    try {
+      const { data: userProfile, error } = await supabase
+        .from('profiles')
+        .select('id, name, username, avatar, created_at')
+        .eq('id', userId)
+        .single();
+
+      if (error) throw error;
+
+      if (userProfile) {
+        setSelectedUser(userProfile);
+        setShowUserDialog(true);
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to load user profile'
+      });
     }
   };
 
@@ -487,7 +514,10 @@ export function CommunityFeed() {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10 border-2 border-social-green/20">
+                    <Avatar 
+                      className="h-10 w-10 border-2 border-social-green/20 cursor-pointer hover:scale-105 transition-transform"
+                      onClick={() => handleUserClick(post.user_id, post.profiles?.username)}
+                    >
                       {post.profiles?.avatar ? (
                         <AvatarImage src={post.profiles.avatar} alt={post.profiles.name} />
                       ) : (
@@ -497,8 +527,16 @@ export function CommunityFeed() {
                       )}
                     </Avatar>
                     <div>
-                      <p className="font-pixelated text-xs font-medium">{post.profiles?.name}</p>
-                      <p className="font-pixelated text-xs text-muted-foreground">
+                      <p 
+                        className="font-pixelated text-xs font-medium cursor-pointer hover:text-social-green transition-colors"
+                        onClick={() => handleUserClick(post.user_id, post.profiles?.username)}
+                      >
+                        {post.profiles?.name}
+                      </p>
+                      <p 
+                        className="font-pixelated text-xs text-muted-foreground cursor-pointer hover:text-social-green transition-colors"
+                        onClick={() => handleUserClick(post.user_id, post.profiles?.username)}
+                      >
                         @{post.profiles?.username} • {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
                       </p>
                     </div>
@@ -626,7 +664,10 @@ export function CommunityFeed() {
                       <div className="mt-4 space-y-3 border-t border-border/50 pt-4 animate-fade-in">
                         {post.comments.map((comment: Comment) => (
                           <div key={comment.id} className="flex gap-2">
-                            <Avatar className="h-6 w-6">
+                            <Avatar 
+                              className="h-6 w-6 cursor-pointer hover:scale-105 transition-transform"
+                              onClick={() => handleUserClick(comment.user_id, '')}
+                            >
                               {comment.profiles?.avatar ? (
                                 <AvatarImage src={comment.profiles.avatar} />
                               ) : (
@@ -637,7 +678,10 @@ export function CommunityFeed() {
                             </Avatar>
                             <div className="flex-1 bg-muted/50 rounded-lg p-2">
                               <div className="flex items-center gap-2 mb-1">
-                                <span className="font-pixelated text-xs font-medium">
+                                <span 
+                                  className="font-pixelated text-xs font-medium cursor-pointer hover:text-social-green transition-colors"
+                                  onClick={() => handleUserClick(comment.user_id, '')}
+                                >
                                   {comment.profiles?.name}
                                 </span>
                                 <span className="font-pixelated text-xs text-muted-foreground">
@@ -696,6 +740,13 @@ export function CommunityFeed() {
           onClose={() => setSelectedImage(null)}
         />
       )}
+
+      {/* User Profile Dialog */}
+      <UserProfileDialog
+        open={showUserDialog}
+        onOpenChange={setShowUserDialog}
+        user={selectedUser}
+      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deletePostId} onOpenChange={() => setDeletePostId(null)}>
