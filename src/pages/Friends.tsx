@@ -290,6 +290,11 @@ export function Friends() {
 
   const removeFriend = async (friendId: string) => {
     try {
+      // Immediately remove from UI
+      setFriends(prev => prev.filter(friend => friend.friend_id !== friendId));
+      setShowRemoveDialog({show: false, friend: null});
+
+      // Delete from database
       const { error } = await supabase
         .from('friends')
         .delete()
@@ -297,16 +302,14 @@ export function Friends() {
 
       if (error) throw error;
 
-      // Remove from friends list
-      setFriends(prev => prev.filter(friend => friend.friend_id !== friendId));
-      setShowRemoveDialog({show: false, friend: null});
-
       toast({
         title: 'Friend removed',
-        description: 'Friend has been removed from your list',
+        description: 'Friend has been removed from your list and chat access blocked',
       });
     } catch (error) {
       console.error('Error removing friend:', error);
+      // Revert UI change if database operation failed
+      fetchFriends();
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -463,7 +466,7 @@ export function Friends() {
             <TabsTrigger value="friends" className="font-pixelated text-xs relative">
               Friends
               {friends.length > 0 && (
-                <Badge variant="secondary\" className="ml-2 h-4 w-4 p-0 text-xs">
+                <Badge variant="secondary" className="ml-2 h-4 w-4 p-0 text-xs">
                   {friends.length}
                 </Badge>
               )}
@@ -471,7 +474,7 @@ export function Friends() {
             <TabsTrigger value="requests" className="font-pixelated text-xs relative">
               Requests
               {requests.length > 0 && (
-                <Badge variant="destructive\" className="ml-2 h-4 w-4 p-0 text-xs animate-pulse">
+                <Badge variant="destructive" className="ml-2 h-4 w-4 p-0 text-xs animate-pulse">
                   {requests.length}
                 </Badge>
               )}
@@ -479,7 +482,7 @@ export function Friends() {
             <TabsTrigger value="suggested" className="font-pixelated text-xs relative">
               Suggested
               {suggested.length > 0 && (
-                <Badge variant="outline\" className="ml-2 h-4 w-4 p-0 text-xs">
+                <Badge variant="outline" className="ml-2 h-4 w-4 p-0 text-xs">
                   {suggested.length}
                 </Badge>
               )}
@@ -579,7 +582,7 @@ export function Friends() {
               </div>
               <AlertDialogDescription className="font-pixelated text-xs">
                 Are you sure you want to remove <strong>{showRemoveDialog.friend?.name}</strong> from your friends list? 
-                This action cannot be undone.
+                This will also block personal chat access instantly. This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
