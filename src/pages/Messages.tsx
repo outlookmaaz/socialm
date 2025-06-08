@@ -3,7 +3,7 @@ import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Send, MessageSquare, User, ArrowLeft } from 'lucide-react';
+import { Send, MessageSquare, User, ArrowLeft, UserX } from 'lucide-react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -14,6 +14,7 @@ interface Friend {
   name: string;
   username: string;
   avatar: string;
+  isBlocked?: boolean;
 }
 
 interface Message {
@@ -86,7 +87,8 @@ export function Messages() {
               id: friendProfile.id,
               name: friendProfile.name || 'User',
               username: friendProfile.username || 'guest',
-              avatar: friendProfile.avatar || ''
+              avatar: friendProfile.avatar || '',
+              isBlocked: false
             });
           }
         }
@@ -100,11 +102,46 @@ export function Messages() {
     }
   };
 
+  const checkIfFriendsStillConnected = async (friendId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      const { data: friendship } = await supabase
+        .from('friends')
+        .select('id')
+        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`)
+        .eq('status', 'accepted')
+        .single();
+
+      return !!friendship;
+    } catch (error) {
+      return false;
+    }
+  };
+
   const fetchMessages = async (friendId: string) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) return;
+
+      // Check if still friends before loading messages
+      const stillFriends = await checkIfFriendsStillConnected(friendId);
+      if (!stillFriends) {
+        // Update friend status to blocked
+        setFriends(prev => 
+          prev.map(f => 
+            f.id === friendId ? { ...f, isBlocked: true } : f
+          )
+        );
+        
+        // If this friend is currently selected, show blocked message
+        if (selectedFriend?.id === friendId) {
+          setSelectedFriend(prev => prev ? { ...prev, isBlocked: true } : null);
+        }
+        return;
+      }
 
       const { data: messagesData, error } = await supabase
         .from('messages')
@@ -142,6 +179,28 @@ export function Messages() {
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedFriend || !currentUser || sendingMessage) return;
+    
+    // Check if friend is blocked
+    if (selectedFriend.isBlocked) {
+      toast({
+        variant: 'destructive',
+        title: 'Cannot send message',
+        description: 'You are no longer friends with this user',
+      });
+      return;
+    }
+
+    // Double-check friendship status before sending
+    const stillFriends = await checkIfFriendsStillConnected(selectedFriend.id);
+    if (!stillFriends) {
+      setSelectedFriend(prev => prev ? { ...prev, isBlocked: true } : null);
+      toast({
+        variant: 'destructive',
+        title: 'Cannot send message',
+        description: 'You are no longer friends with this user',
+      });
+      return;
+    }
     
     try {
       setSendingMessage(true);
@@ -261,12 +320,39 @@ export function Messages() {
         )
         .subscribe();
 
+      // Listen for friend removals
+      const friendsChannel = supabase
+        .channel(`friends-${selectedFriend.id}-${currentUser.id}`)
+        .on('postgres_changes',
+          {
+            event: 'DELETE',
+            schema: 'public',
+            table: 'friends'
+          },
+          (payload) => {
+            // Check if this deletion affects current conversation
+            const deletedFriend = payload.old;
+            if ((deletedFriend.sender_id === currentUser.id && deletedFriend.receiver_id === selectedFriend.id) ||
+                (deletedFriend.sender_id === selectedFriend.id && deletedFriend.receiver_id === currentUser.id)) {
+              // Mark friend as blocked
+              setSelectedFriend(prev => prev ? { ...prev, isBlocked: true } : null);
+              setFriends(prev => 
+                prev.map(f => 
+                  f.id === selectedFriend.id ? { ...f, isBlocked: true } : f
+                )
+              );
+            }
+          }
+        )
+        .subscribe();
+
       const messageInterval = setInterval(() => {
         fetchMessages(selectedFriend.id);
       }, 10000);
 
       return () => {
         supabase.removeChannel(channel);
+        supabase.removeChannel(friendsChannel);
         clearInterval(messageInterval);
       };
     }
@@ -341,7 +427,7 @@ export function Messages() {
                         selectedFriend?.id === friend.id 
                           ? 'bg-accent shadow-md' 
                           : ''
-                      }`}
+                      } ${friend.isBlocked ? 'opacity-50' : ''}`}
                     >
                       <Avatar className="h-12 w-12 border-2 border-background">
                         {friend.avatar ? (
@@ -356,8 +442,16 @@ export function Messages() {
                         <p className="font-medium truncate">{friend.name}</p>
                         <p className="text-sm text-muted-foreground truncate">
                           @{friend.username}
+                          {friend.isBlocked && (
+                            <span className="ml-2 text-destructive font-pixelated text-xs">
+                              • No longer friends
+                            </span>
+                          )}
                         </p>
                       </div>
+                      {friend.isBlocked && (
+                        <UserX className="h-4 w-4 text-destructive" />
+                      )}
                     </div>
                   ))}
                 </div>
@@ -400,8 +494,16 @@ export function Messages() {
                     <p className="font-medium truncate">{selectedFriend.name}</p>
                     <p className="text-sm text-muted-foreground truncate">
                       @{selectedFriend.username}
+                      {selectedFriend.isBlocked && (
+                        <span className="ml-2 text-destructive font-pixelated">
+                          • No longer friends
+                        </span>
+                      )}
                     </p>
                   </div>
+                  {selectedFriend.isBlocked && (
+                    <UserX className="h-5 w-5 text-destructive" />
+                  )}
                 </div>
 
                 {/* Messages Area - Scrollable */}
@@ -413,6 +515,20 @@ export function Messages() {
                     WebkitOverflowScrolling: 'touch'
                   }}
                 >
+                  {selectedFriend.isBlocked && (
+                    <div className="text-center py-4">
+                      <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 max-w-md mx-auto">
+                        <UserX className="h-8 w-8 text-destructive mx-auto mb-2" />
+                        <p className="font-pixelated text-sm text-destructive font-medium">
+                          You are no longer friends
+                        </p>
+                        <p className="font-pixelated text-xs text-muted-foreground mt-1">
+                          You cannot send or receive messages from this user
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  
                   {messages.map((message) => (
                     <div 
                       key={message.id}
@@ -450,31 +566,41 @@ export function Messages() {
 
                 {/* Message Input */}
                 <div className="p-4 border-t bg-background">
-                  <div className="flex gap-2">
-                    <Textarea 
-                      placeholder="Type a message..." 
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          sendMessage();
-                        }
-                      }}
-                      className="min-h-[45px] max-h-[120px] resize-none"
-                      disabled={sendingMessage}
-                    />
-                    <Button
-                      onClick={sendMessage}
-                      disabled={!newMessage.trim() || sendingMessage}
-                      className="bg-primary hover:bg-primary/90"
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Press Enter to send, Shift + Enter for new line
-                  </p>
+                  {selectedFriend.isBlocked ? (
+                    <div className="text-center py-2">
+                      <p className="font-pixelated text-xs text-muted-foreground">
+                        You cannot send messages to this user
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex gap-2">
+                        <Textarea 
+                          placeholder="Type a message..." 
+                          value={newMessage}
+                          onChange={(e) => setNewMessage(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              sendMessage();
+                            }
+                          }}
+                          className="min-h-[45px] max-h-[120px] resize-none"
+                          disabled={sendingMessage || selectedFriend.isBlocked}
+                        />
+                        <Button
+                          onClick={sendMessage}
+                          disabled={!newMessage.trim() || sendingMessage || selectedFriend.isBlocked}
+                          className="bg-primary hover:bg-primary/90"
+                        >
+                          <Send className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Press Enter to send, Shift + Enter for new line
+                      </p>
+                    </>
+                  )}
                 </div>
               </>
             ) : (

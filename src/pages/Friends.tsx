@@ -290,11 +290,11 @@ export function Friends() {
 
   const removeFriend = async (friendId: string) => {
     try {
-      // Immediately remove from UI
+      // Immediately remove from UI for instant feedback
       setFriends(prev => prev.filter(friend => friend.friend_id !== friendId));
       setShowRemoveDialog({show: false, friend: null});
 
-      // Delete from database
+      // Delete from database - this will trigger real-time updates in Messages
       const { error } = await supabase
         .from('friends')
         .delete()
@@ -306,6 +306,24 @@ export function Friends() {
         title: 'Friend removed',
         description: 'Friend has been removed from your list and chat access blocked',
       });
+
+      // Create notification for the removed friend
+      const removedFriend = friends.find(f => f.friend_id === friendId);
+      if (removedFriend && currentUser) {
+        try {
+          await supabase
+            .from('notifications')
+            .insert({
+              user_id: removedFriend.id,
+              type: 'friend_removed',
+              content: `${currentUser.email?.split('@')[0] || 'Someone'} removed you from their friends list`,
+              read: false
+            });
+        } catch (notifError) {
+          console.log('Notification creation handled');
+        }
+      }
+
     } catch (error) {
       console.error('Error removing friend:', error);
       // Revert UI change if database operation failed
@@ -466,7 +484,7 @@ export function Friends() {
             <TabsTrigger value="friends" className="font-pixelated text-xs relative">
               Friends
               {friends.length > 0 && (
-                <Badge variant="secondary\" className="ml-2 h-4 w-4 p-0 text-xs">
+                <Badge variant="secondary" className="ml-2 h-4 w-4 p-0 text-xs">
                   {friends.length}
                 </Badge>
               )}
@@ -474,7 +492,7 @@ export function Friends() {
             <TabsTrigger value="requests" className="font-pixelated text-xs relative">
               Requests
               {requests.length > 0 && (
-                <Badge variant="destructive\" className="ml-2 h-4 w-4 p-0 text-xs animate-pulse">
+                <Badge variant="destructive" className="ml-2 h-4 w-4 p-0 text-xs animate-pulse">
                   {requests.length}
                 </Badge>
               )}
@@ -482,7 +500,7 @@ export function Friends() {
             <TabsTrigger value="suggested" className="font-pixelated text-xs relative">
               Suggested
               {suggested.length > 0 && (
-                <Badge variant="outline\" className="ml-2 h-4 w-4 p-0 text-xs">
+                <Badge variant="outline" className="ml-2 h-4 w-4 p-0 text-xs">
                   {suggested.length}
                 </Badge>
               )}

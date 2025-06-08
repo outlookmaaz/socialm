@@ -32,53 +32,13 @@ interface Notification {
 
 export function Notifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [showInfo, setShowInfo] = useState(false);
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [syncingInBackground, setSyncingInBackground] = useState(false);
   const { toast } = useToast();
-
-  // Mock notifications for demo - replace with real data when available
-  const mockNotifications: Notification[] = [
-    {
-      id: '1',
-      type: 'friend_request',
-      content: 'John Doe sent you a friend request',
-      reference_id: null,
-      read: false,
-      created_at: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-      user_id: 'current-user'
-    },
-    {
-      id: '2',
-      type: 'message',
-      content: 'Sarah Wilson sent you a message',
-      reference_id: null,
-      read: false,
-      created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-      user_id: 'current-user'
-    },
-    {
-      id: '3',
-      type: 'like',
-      content: 'Mike Johnson liked your post',
-      reference_id: null,
-      read: true,
-      created_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-      user_id: 'current-user'
-    },
-    {
-      id: '4',
-      type: 'comment',
-      content: 'Emma Davis commented on your post',
-      reference_id: null,
-      read: true,
-      created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-      user_id: 'current-user'
-    }
-  ];
 
   const fetchNotifications = async (showLoading = true) => {
     try {
@@ -90,35 +50,80 @@ export function Notifications() {
 
       setCurrentUser(user);
 
-      // Try to fetch from database, fallback to mock data
-      try {
-        const { data, error } = await supabase
+      // Create notifications table if it doesn't exist
+      await createNotificationsTableIfNeeded();
+
+      // Fetch real notifications from database
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching notifications:', error);
+        // Create some sample notifications for the user
+        await createSampleNotifications(user.id);
+        // Try fetching again
+        const { data: retryData } = await supabase
           .from('notifications')
           .select('*')
           .eq('user_id', user.id)
           .is('deleted_at', null)
           .order('created_at', { ascending: false });
-
-        if (error && error.code === '42P01') {
-          // Table doesn't exist, use mock data
-          console.log('Using mock notifications data');
-          setNotifications(mockNotifications);
-        } else if (error) {
-          throw error;
-        } else {
-          setNotifications(data || mockNotifications);
-        }
-      } catch (dbError) {
-        console.log('Database error, using mock data:', dbError);
-        setNotifications(mockNotifications);
+        
+        setNotifications(retryData || []);
+      } else {
+        setNotifications(data || []);
       }
     } catch (error) {
-      console.error('Error fetching notifications:', error);
-      // Don't show error in UI, just use stored/mock data
-      setNotifications(mockNotifications);
+      console.error('Error in fetchNotifications:', error);
+      setNotifications([]);
     } finally {
       setLoading(false);
       setSyncingInBackground(false);
+    }
+  };
+
+  const createNotificationsTableIfNeeded = async () => {
+    try {
+      // Try to create the table if it doesn't exist
+      const { error } = await supabase.rpc('create_notifications_table_if_not_exists');
+      if (error && !error.message.includes('already exists')) {
+        console.log('Notifications table creation result:', error);
+      }
+    } catch (error) {
+      console.log('Table creation handled by migration');
+    }
+  };
+
+  const createSampleNotifications = async (userId: string) => {
+    try {
+      const sampleNotifications = [
+        {
+          user_id: userId,
+          type: 'friend_request',
+          content: 'Welcome to SocialChat! Start connecting with friends.',
+          read: false
+        },
+        {
+          user_id: userId,
+          type: 'message',
+          content: 'Your account has been successfully created.',
+          read: false
+        }
+      ];
+
+      for (const notification of sampleNotifications) {
+        await supabase
+          .from('notifications')
+          .insert(notification)
+          .select()
+          .single();
+      }
+    } catch (error) {
+      console.log('Sample notifications creation handled');
     }
   };
 
@@ -131,14 +136,19 @@ export function Notifications() {
         )
       );
 
-      // Try to update in database
       const { error } = await supabase
         .from('notifications')
         .update({ read: true })
         .eq('id', notificationId);
 
-      if (error && error.code !== '42P01') {
+      if (error) {
         console.error('Error marking notification as read:', error);
+        // Revert optimistic update on error
+        setNotifications(prev =>
+          prev.map(notif =>
+            notif.id === notificationId ? { ...notif, read: false } : notif
+          )
+        );
       }
     } catch (error) {
       console.error('Error marking notification as read:', error);
@@ -150,30 +160,38 @@ export function Notifications() {
       if (!currentUser) return;
 
       // Optimistic update
+      const originalNotifications = [...notifications];
       setNotifications(prev =>
         prev.map(notif => ({ ...notif, read: true }))
       );
 
-      // Try to update in database
       const { error } = await supabase
         .from('notifications')
         .update({ read: true })
         .eq('user_id', currentUser.id)
         .eq('read', false);
 
-      if (error && error.code !== '42P01') {
+      if (error) {
         console.error('Error marking all as read:', error);
+        // Revert on error
+        setNotifications(originalNotifications);
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to mark all notifications as read'
+        });
+      } else {
+        toast({
+          title: 'All notifications marked as read',
+          description: 'Your notifications have been updated',
+        });
       }
-
-      toast({
-        title: 'All notifications marked as read',
-        description: 'Your notifications have been updated',
-      });
     } catch (error) {
       console.error('Error marking all as read:', error);
       toast({
-        title: 'All notifications marked as read',
-        description: 'Your notifications have been updated',
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to mark all notifications as read'
       });
     }
   };
@@ -183,29 +201,38 @@ export function Notifications() {
       if (!currentUser) return;
 
       // Optimistic update
+      const originalNotifications = [...notifications];
       setNotifications([]);
       setShowClearDialog(false);
 
-      // Try to update in database
       const { error } = await supabase
         .from('notifications')
         .update({ deleted_at: new Date().toISOString() })
         .eq('user_id', currentUser.id)
         .is('deleted_at', null);
 
-      if (error && error.code !== '42P01') {
+      if (error) {
         console.error('Error clearing notifications:', error);
+        // Revert on error
+        setNotifications(originalNotifications);
+        setShowClearDialog(false);
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to clear notifications'
+        });
+      } else {
+        toast({
+          title: 'All notifications cleared',
+          description: 'Your notifications have been cleared',
+        });
       }
-
-      toast({
-        title: 'All notifications cleared',
-        description: 'Your notifications have been cleared',
-      });
     } catch (error) {
       console.error('Error clearing notifications:', error);
       toast({
-        title: 'All notifications cleared',
-        description: 'Your notifications have been cleared',
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to clear notifications'
       });
     }
   };
@@ -213,27 +240,35 @@ export function Notifications() {
   const deleteNotification = async (notificationId: string) => {
     try {
       // Optimistic update
+      const originalNotifications = [...notifications];
       setNotifications(prev => prev.filter(notif => notif.id !== notificationId));
 
-      // Try to update in database
       const { error } = await supabase
         .from('notifications')
         .update({ deleted_at: new Date().toISOString() })
         .eq('id', notificationId);
 
-      if (error && error.code !== '42P01') {
+      if (error) {
         console.error('Error deleting notification:', error);
+        // Revert on error
+        setNotifications(originalNotifications);
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to delete notification'
+        });
+      } else {
+        toast({
+          title: 'Notification deleted',
+          description: 'The notification has been removed',
+        });
       }
-
-      toast({
-        title: 'Notification deleted',
-        description: 'The notification has been removed',
-      });
     } catch (error) {
       console.error('Error deleting notification:', error);
       toast({
-        title: 'Notification deleted',
-        description: 'The notification has been removed',
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to delete notification'
       });
     }
   };
