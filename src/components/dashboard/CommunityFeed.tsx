@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { Heart, MessageCircle, Send, MoreVertical, Edit, Trash2, ArrowUp, ChevronDown, ChevronUp, Globe, Users, Lock } from 'lucide-react';
+import { Heart, MessageCircle, Send, MoreVertical, Edit, Trash2, ArrowUp, ChevronDown, ChevronUp, Globe, Users } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -68,7 +68,11 @@ interface Comment {
   };
 }
 
-export function CommunityFeed() {
+interface CommunityFeedProps {
+  refreshTrigger?: number;
+}
+
+export function CommunityFeed({ refreshTrigger }: CommunityFeedProps) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -136,20 +140,16 @@ export function CommunityFeed() {
     }
   };
 
-  const fetchPosts = useCallback(async () => {
+  const fetchPosts = useCallback(async (showLoadingState = true) => {
     try {
-      console.log('Fetching posts...');
+      if (showLoadingState) {
+        setLoading(true);
+      }
       
-      // First, let's try a simple query to see if posts exist at all
-      const { data: allPosts, error: allPostsError } = await supabase
-        .from('posts')
-        .select('id, content, visibility')
-        .limit(5);
+      console.log('Fetching posts...');
 
-      console.log('All posts check:', allPosts, allPostsError);
-
-      // Now fetch posts with full data
-      const { data, error } = await supabase
+      // Try to fetch posts with visibility column first
+      let query = supabase
         .from('posts')
         .select(`
           id,
@@ -180,11 +180,13 @@ export function CommunityFeed() {
         `)
         .order('created_at', { ascending: false });
 
+      const { data, error } = await query;
+
       if (error) {
         console.error('Error fetching posts:', error);
         
         // If visibility column doesn't exist, try without it
-        if (error.message?.includes('visibility')) {
+        if (error.message?.includes('visibility') || error.message?.includes('column')) {
           console.log('Trying without visibility column...');
           const { data: fallbackData, error: fallbackError } = await supabase
             .from('posts')
@@ -250,14 +252,18 @@ export function CommunityFeed() {
       console.log('Loaded posts:', formattedPosts.length);
     } catch (error) {
       console.error('Error fetching posts:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to load posts. Please refresh the page.'
-      });
+      if (showLoadingState) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to load posts. Please refresh the page.'
+        });
+      }
       setPosts([]); // Set empty array to show "no posts" message
     } finally {
-      setLoading(false);
+      if (showLoadingState) {
+        setLoading(false);
+      }
     }
   }, [toast]);
 
@@ -278,15 +284,7 @@ export function CommunityFeed() {
       const existingLike = post.likes.find(like => like.user_id === currentUser.id);
 
       if (existingLike) {
-        // Unlike
-        const { error } = await supabase
-          .from('likes')
-          .delete()
-          .eq('id', existingLike.id);
-
-        if (error) throw error;
-
-        // Optimistic update
+        // Unlike - Optimistic update first
         setPosts(prevPosts =>
           prevPosts.map(p =>
             p.id === postId
@@ -301,8 +299,48 @@ export function CommunityFeed() {
               : p
           )
         );
+
+        const { error } = await supabase
+          .from('likes')
+          .delete()
+          .eq('id', existingLike.id);
+
+        if (error) {
+          // Revert optimistic update on error
+          setPosts(prevPosts =>
+            prevPosts.map(p =>
+              p.id === postId
+                ? {
+                    ...p,
+                    likes: [...p.likes, existingLike],
+                    _count: {
+                      ...p._count,
+                      likes: (p._count?.likes || 0) + 1
+                    }
+                  }
+                : p
+            )
+          );
+          throw error;
+        }
       } else {
-        // Like
+        // Like - Optimistic update first
+        const tempLike = { id: 'temp-' + Date.now(), user_id: currentUser.id };
+        setPosts(prevPosts =>
+          prevPosts.map(p =>
+            p.id === postId
+              ? {
+                  ...p,
+                  likes: [...p.likes, tempLike],
+                  _count: {
+                    ...p._count,
+                    likes: (p._count?.likes || 0) + 1
+                  }
+                }
+              : p
+          )
+        );
+
         const { data, error } = await supabase
           .from('likes')
           .insert({
@@ -312,19 +350,34 @@ export function CommunityFeed() {
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          // Revert optimistic update on error
+          setPosts(prevPosts =>
+            prevPosts.map(p =>
+              p.id === postId
+                ? {
+                    ...p,
+                    likes: p.likes.filter(like => like.id !== tempLike.id),
+                    _count: {
+                      ...p._count,
+                      likes: (p._count?.likes || 0) - 1
+                    }
+                  }
+                : p
+            )
+          );
+          throw error;
+        }
 
-        // Optimistic update
+        // Replace temp like with real like
         setPosts(prevPosts =>
           prevPosts.map(p =>
             p.id === postId
               ? {
                   ...p,
-                  likes: [...p.likes, { id: data.id, user_id: currentUser.id }],
-                  _count: {
-                    ...p._count,
-                    likes: (p._count?.likes || 0) + 1
-                  }
+                  likes: p.likes.map(like => 
+                    like.id === tempLike.id ? { id: data.id, user_id: currentUser.id } : like
+                  )
                 }
               : p
           )
@@ -370,7 +423,7 @@ export function CommunityFeed() {
 
       if (error) throw error;
 
-      // Update posts with new comment
+      // Optimistic update
       setPosts(prevPosts =>
         prevPosts.map(post =>
           post.id === postId
@@ -478,14 +531,6 @@ export function CommunityFeed() {
     }
   }, []);
 
-  const getVisibilityIcon = (visibility: string) => {
-    return visibility === 'public' ? (
-      <Globe className="h-3 w-3 text-social-blue" />
-    ) : (
-      <Users className="h-3 w-3 text-social-green" />
-    );
-  };
-
   const getVisibilityBadge = (visibility: string) => {
     return visibility === 'public' ? (
       <Badge variant="secondary" className="bg-social-blue/10 text-social-blue border-social-blue/20 font-pixelated text-xs">
@@ -500,18 +545,54 @@ export function CommunityFeed() {
     );
   };
 
+  // Refresh when refreshTrigger changes
+  useEffect(() => {
+    if (refreshTrigger !== undefined && refreshTrigger > 0) {
+      console.log('Refresh trigger activated:', refreshTrigger);
+      fetchPosts(false); // Don't show loading state for refresh
+    }
+  }, [refreshTrigger, fetchPosts]);
+
   useEffect(() => {
     getCurrentUser();
     fetchPosts();
 
-    // Set up real-time subscriptions
+    // Set up real-time subscriptions with immediate updates
     const postsChannel = supabase
       .channel('posts-realtime')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'posts' }, 
-        () => {
-          console.log('Posts changed, refetching...');
-          fetchPosts();
+        (payload) => {
+          console.log('Posts changed, updating immediately...', payload);
+          
+          if (payload.eventType === 'INSERT') {
+            // Add new post immediately to the top
+            const newPost = payload.new as any;
+            setPosts(prevPosts => {
+              // Check if post already exists
+              if (prevPosts.some(p => p.id === newPost.id)) {
+                return prevPosts;
+              }
+              
+              // Add new post with default structure
+              const postWithDefaults = {
+                ...newPost,
+                visibility: newPost.visibility || 'public',
+                profiles: { name: 'Loading...', username: 'loading', avatar: null },
+                likes: [],
+                comments: [],
+                _count: { likes: 0, comments: 0 }
+              };
+              
+              return [postWithDefaults, ...prevPosts];
+            });
+            
+            // Fetch full post details in background
+            setTimeout(() => fetchPosts(false), 500);
+          } else {
+            // For updates and deletes, refresh the feed
+            fetchPosts(false);
+          }
         }
       )
       .subscribe();
@@ -520,7 +601,11 @@ export function CommunityFeed() {
       .channel('likes-realtime')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'likes' }, 
-        () => fetchPosts()
+        () => {
+          console.log('Likes changed, updating...');
+          // Don't refresh immediately for likes to avoid conflicts with optimistic updates
+          setTimeout(() => fetchPosts(false), 1000);
+        }
       )
       .subscribe();
 
@@ -528,7 +613,11 @@ export function CommunityFeed() {
       .channel('comments-realtime')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'comments' }, 
-        () => fetchPosts()
+        () => {
+          console.log('Comments changed, updating...');
+          // Don't refresh immediately for comments to avoid conflicts with optimistic updates
+          setTimeout(() => fetchPosts(false), 1000);
+        }
       )
       .subscribe();
 

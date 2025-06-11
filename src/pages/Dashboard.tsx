@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Send, Image as ImageIcon, X, Globe, Users, Lock } from 'lucide-react';
+import { Send, Image as ImageIcon, X, Globe, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -19,6 +19,7 @@ export function Dashboard() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isPublic, setIsPublic] = useState(true); // true = public, false = friends only
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // Add refresh trigger
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -100,53 +101,91 @@ export function Dashboard() {
         imageUrl = data.publicUrl;
       }
 
-      // Try to insert with visibility first, fallback without it if column doesn't exist
-      let insertData: any = {
+      // Prepare post data
+      const postData = {
         content: postContent.trim(),
         user_id: user.id,
-        image_url: imageUrl
+        image_url: imageUrl,
+        visibility: isPublic ? 'public' : 'friends'
       };
 
-      // Try with visibility column first
-      try {
-        insertData.visibility = isPublic ? 'public' : 'friends';
-        const { error } = await supabase
-          .from('posts')
-          .insert(insertData);
+      console.log('Creating post with data:', postData);
 
-        if (error) {
-          // If visibility column doesn't exist, try without it
-          if (error.message?.includes('visibility')) {
-            console.log('Visibility column not found, posting without privacy setting...');
-            delete insertData.visibility;
-            const { error: fallbackError } = await supabase
-              .from('posts')
-              .insert(insertData);
-            
-            if (fallbackError) throw fallbackError;
-            
-            toast({
-              title: 'Post created!',
-              description: 'Your post has been shared (privacy features will be available soon)',
-            });
-          } else {
-            throw error;
-          }
-        } else {
-          toast({
-            title: 'Success',
-            description: `Your ${isPublic ? 'public' : 'friends-only'} post has been shared!`
-          });
-        }
-      } catch (error) {
+      // Try to insert with visibility first, fallback without it if column doesn't exist
+      const { data: newPost, error } = await supabase
+        .from('posts')
+        .insert(postData)
+        .select(`
+          id,
+          content,
+          image_url,
+          visibility,
+          created_at,
+          user_id,
+          profiles:user_id (
+            name,
+            username,
+            avatar
+          )
+        `)
+        .single();
+
+      if (error) {
         console.error('Post creation error:', error);
-        throw new Error('Failed to create post. Please try again.');
+        
+        // If visibility column doesn't exist, try without it
+        if (error.message?.includes('visibility') || error.message?.includes('column')) {
+          console.log('Visibility column not found, posting without privacy setting...');
+          const fallbackData = { ...postData };
+          delete fallbackData.visibility;
+          
+          const { data: fallbackPost, error: fallbackError } = await supabase
+            .from('posts')
+            .insert(fallbackData)
+            .select(`
+              id,
+              content,
+              image_url,
+              created_at,
+              user_id,
+              profiles:user_id (
+                name,
+                username,
+                avatar
+              )
+            `)
+            .single();
+          
+          if (fallbackError) {
+            console.error('Fallback post creation error:', fallbackError);
+            throw new Error('Failed to create post. Please try again.');
+          }
+          
+          console.log('Post created successfully (fallback):', fallbackPost);
+          
+          toast({
+            title: 'Post created!',
+            description: 'Your post has been shared (privacy features will be available soon)',
+          });
+        } else {
+          throw new Error(error.message || 'Failed to create post. Please try again.');
+        }
+      } else {
+        console.log('Post created successfully:', newPost);
+        
+        toast({
+          title: 'Success!',
+          description: `Your ${isPublic ? 'public' : 'friends-only'} post has been shared!`
+        });
       }
 
-      // Reset form
+      // Reset form but keep privacy setting
       setPostContent('');
       removeImage();
-      setIsPublic(true); // Reset to public by default
+      // Don't reset isPublic - keep user's preference
+      
+      // Trigger immediate refresh of the feed
+      setRefreshTrigger(prev => prev + 1);
       
     } catch (error: any) {
       console.error('Error creating post:', error);
@@ -234,7 +273,10 @@ export function Dashboard() {
                   <Switch
                     id="privacy-toggle"
                     checked={isPublic}
-                    onCheckedChange={setIsPublic}
+                    onCheckedChange={(checked) => {
+                      console.log('Privacy toggle changed:', checked);
+                      setIsPublic(checked);
+                    }}
                     disabled={isPosting}
                     className="data-[state=checked]:bg-social-blue data-[state=unchecked]:bg-social-green"
                   />
@@ -278,8 +320,8 @@ export function Dashboard() {
             </CardContent>
           </Card>
           
-          {/* Feed */}
-          <CommunityFeed />
+          {/* Feed with refresh trigger */}
+          <CommunityFeed key={refreshTrigger} refreshTrigger={refreshTrigger} />
         </ScrollArea>
       </div>
     </DashboardLayout>
