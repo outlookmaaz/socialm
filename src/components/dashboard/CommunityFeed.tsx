@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Heart, MessageCircle, Send, MoreVertical, Edit, Trash2, ArrowUp, ChevronDown, ChevronUp } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Heart, MessageCircle, Send, MoreVertical, Edit, Trash2, ArrowUp, ChevronDown, ChevronUp, Globe, Users, Lock } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -31,6 +32,7 @@ interface Post {
   id: string;
   content: string;
   image_url: string | null;
+  visibility: 'public' | 'friends';
   created_at: string;
   user_id: string;
   profiles: {
@@ -142,6 +144,7 @@ export function CommunityFeed() {
           id,
           content,
           image_url,
+          visibility,
           created_at,
           user_id,
           profiles:user_id (
@@ -406,6 +409,28 @@ export function CommunityFeed() {
     }
   }, []);
 
+  const getVisibilityIcon = (visibility: string) => {
+    switch (visibility) {
+      case 'public':
+        return <Globe className="h-3 w-3 text-social-blue" />;
+      case 'friends':
+        return <Users className="h-3 w-3 text-social-purple" />;
+      default:
+        return <Lock className="h-3 w-3 text-muted-foreground" />;
+    }
+  };
+
+  const getVisibilityText = (visibility: string) => {
+    switch (visibility) {
+      case 'public':
+        return 'Public';
+      case 'friends':
+        return 'Friends Only';
+      default:
+        return 'Private';
+    }
+  };
+
   useEffect(() => {
     getCurrentUser();
     fetchPosts();
@@ -533,12 +558,21 @@ export function CommunityFeed() {
                       >
                         {post.profiles?.name}
                       </p>
-                      <p 
-                        className="font-pixelated text-xs text-muted-foreground cursor-pointer hover:text-social-green transition-colors"
-                        onClick={() => handleUserClick(post.user_id, post.profiles?.username)}
-                      >
-                        @{post.profiles?.username} • {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p 
+                          className="font-pixelated text-xs text-muted-foreground cursor-pointer hover:text-social-green transition-colors"
+                          onClick={() => handleUserClick(post.user_id, post.profiles?.username)}
+                        >
+                          @{post.profiles?.username} • {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+                        </p>
+                        <Badge 
+                          variant="outline" 
+                          className="h-4 px-1 text-xs font-pixelated flex items-center gap-1"
+                        >
+                          {getVisibilityIcon(post.visibility)}
+                          {getVisibilityText(post.visibility)}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
                   
