@@ -30,11 +30,13 @@ import {
   Calendar,
   Zap,
   Star,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { formatDistanceToNow, format, isToday, isYesterday, startOfDay, endOfDay } from 'date-fns';
+import { useEnhancedNotifications } from '@/hooks/use-enhanced-notifications';
+import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   DropdownMenu,
@@ -86,19 +88,31 @@ interface NotificationSettings {
 }
 
 export function Notifications() {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const {
+    notifications,
+    unreadCount,
+    isGranted,
+    isOnline,
+    soundEnabled,
+    setSoundEnabled,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+    clearAllNotifications,
+    requestPermission,
+    fetchNotifications
+  } = useEnhancedNotifications();
+
   const [notificationGroups, setNotificationGroups] = useState<NotificationGroup[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [showFilterDialog, setShowFilterDialog] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [settings, setSettings] = useState<NotificationSettings>({
-    sound: true,
-    browser: true,
+    sound: soundEnabled,
+    browser: isGranted,
     email: false,
     friends: true,
     messages: true,
@@ -106,7 +120,6 @@ export function Notifications() {
     comments: true
   });
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
-  const channelRef = useRef<any>(null);
   const { toast } = useToast();
 
   // Group notifications by date
@@ -144,143 +157,42 @@ export function Notifications() {
     return notifications.filter(n => n.type === selectedFilter);
   }, [selectedFilter]);
 
-  const fetchNotifications = useCallback(async (showLoading = true) => {
+  // Manual refresh function
+  const handleRefresh = async () => {
+    setRefreshing(true);
     try {
-      if (showLoading) setLoading(true);
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      setCurrentUser(user);
-
-      // Fetch notifications with sender profile information
-      const { data, error } = await supabase
-        .from('notifications')
-        .select(`
-          *,
-          sender_profile:profiles!notifications_reference_id_fkey(
-            name,
-            username,
-            avatar
-          )
-        `)
-        .eq('user_id', user.id)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (error) {
-        console.error('Error fetching notifications:', error);
-        // Create sample notifications for demo
-        await createSampleNotifications(user.id);
-        return;
-      }
-
-      const formattedNotifications = data?.map(notification => ({
-        ...notification,
-        sender_profile: notification.sender_profile || null
-      })) || [];
-
-      setNotifications(formattedNotifications);
-      
-      const filtered = filterNotifications(formattedNotifications);
-      setNotificationGroups(groupNotificationsByDate(filtered));
+      await fetchNotifications();
+      toast({
+        title: 'Notifications refreshed',
+        description: 'Your notifications have been updated',
+      });
     } catch (error) {
-      console.error('Error in fetchNotifications:', error);
-      setNotifications([]);
-      setNotificationGroups([]);
+      toast({
+        variant: 'destructive',
+        title: 'Refresh failed',
+        description: 'Failed to refresh notifications',
+      });
     } finally {
-      setLoading(false);
-    }
-  }, [filterNotifications, groupNotificationsByDate]);
-
-  const createSampleNotifications = async (userId: string) => {
-    try {
-      const sampleNotifications = [
-        {
-          user_id: userId,
-          type: 'friend_request',
-          content: 'John Doe sent you a friend request',
-          read: false,
-          created_at: new Date().toISOString()
-        },
-        {
-          user_id: userId,
-          type: 'message',
-          content: 'Sarah Wilson sent you a message',
-          read: false,
-          created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString() // 30 minutes ago
-        },
-        {
-          user_id: userId,
-          type: 'like',
-          content: 'Mike Johnson liked your post',
-          read: true,
-          created_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString() // 2 hours ago
-        },
-        {
-          user_id: userId,
-          type: 'comment',
-          content: 'Emma Davis commented on your post',
-          read: false,
-          created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString() // 1 day ago
-        },
-        {
-          user_id: userId,
-          type: 'friend_accepted',
-          content: 'Alex Brown accepted your friend request',
-          read: true,
-          created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString() // 2 days ago
-        }
-      ];
-
-      for (const notification of sampleNotifications) {
-        await supabase
-          .from('notifications')
-          .insert(notification);
-      }
-      
-      // Fetch again after creating samples
-      setTimeout(() => fetchNotifications(false), 1000);
-    } catch (error) {
-      console.log('Sample notifications creation handled');
+      setRefreshing(false);
     }
   };
 
-  const markAsRead = async (notificationId: string) => {
+  const handleMarkAsRead = async (notificationId: string) => {
     if (processingIds.has(notificationId)) return;
     
     try {
       setProcessingIds(prev => new Set(prev).add(notificationId));
-      
-      // Optimistic update
-      setNotifications(prev =>
-        prev.map(notif =>
-          notif.id === notificationId ? { ...notif, read: true } : notif
-        )
-      );
-
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('id', notificationId);
-
-      if (error) {
-        console.error('Error marking notification as read:', error);
-        // Revert optimistic update on error
-        setNotifications(prev =>
-          prev.map(notif =>
-            notif.id === notificationId ? { ...notif, read: false } : notif
-          )
-        );
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: 'Failed to mark notification as read'
-        });
-      }
+      await markAsRead(notificationId);
+      toast({
+        title: 'Marked as read',
+        description: 'Notification has been marked as read',
+      });
     } catch (error) {
-      console.error('Error marking notification as read:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to mark notification as read'
+      });
     } finally {
       setProcessingIds(prev => {
         const newSet = new Set(prev);
@@ -290,163 +202,61 @@ export function Notifications() {
     }
   };
 
-  const markAllAsRead = async () => {
+  const handleDeleteNotification = async (notificationId: string) => {
+    if (processingIds.has(notificationId)) return;
+    
     try {
-      if (!currentUser) return;
-
-      // Optimistic update
-      const originalNotifications = [...notifications];
-      setNotifications(prev =>
-        prev.map(notif => ({ ...notif, read: true }))
-      );
-
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('user_id', currentUser.id)
-        .eq('read', false);
-
-      if (error) {
-        console.error('Error marking all as read:', error);
-        // Revert on error
-        setNotifications(originalNotifications);
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: 'Failed to mark all notifications as read'
-        });
-      } else {
-        toast({
-          title: 'All notifications marked as read',
-          description: 'Your notifications have been updated',
-        });
-      }
+      setProcessingIds(prev => new Set(prev).add(notificationId));
+      await deleteNotification(notificationId);
+      toast({
+        title: 'Notification deleted',
+        description: 'The notification has been removed',
+      });
     } catch (error) {
-      console.error('Error marking all as read:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to delete notification'
+      });
+    } finally {
+      setProcessingIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(notificationId);
+        return newSet;
+      });
     }
   };
 
-  const clearAllNotifications = async () => {
+  const handleMarkAllAsRead = async () => {
     try {
-      if (!currentUser) return;
+      await markAllAsRead();
+      toast({
+        title: 'All notifications marked as read',
+        description: 'Your notifications have been updated',
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to mark all notifications as read'
+      });
+    }
+  };
 
-      // Optimistic update
-      const originalNotifications = [...notifications];
-      setNotifications([]);
-      setNotificationGroups([]);
+  const handleClearAll = async () => {
+    try {
+      await clearAllNotifications();
       setShowClearDialog(false);
-
-      const { error } = await supabase
-        .from('notifications')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('user_id', currentUser.id)
-        .is('deleted_at', null);
-
-      if (error) {
-        console.error('Error clearing notifications:', error);
-        // Revert on error
-        setNotifications(originalNotifications);
-        setNotificationGroups(groupNotificationsByDate(filterNotifications(originalNotifications)));
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: 'Failed to clear notifications'
-        });
-      } else {
-        toast({
-          title: 'All notifications cleared',
-          description: 'Your notifications have been cleared',
-        });
-      }
-    } catch (error) {
-      console.error('Error clearing notifications:', error);
-    }
-  };
-
-  const deleteNotification = async (notificationId: string) => {
-    if (processingIds.has(notificationId)) return;
-    
-    try {
-      setProcessingIds(prev => new Set(prev).add(notificationId));
-      
-      // Optimistic update
-      const originalNotifications = [...notifications];
-      setNotifications(prev => prev.filter(notif => notif.id !== notificationId));
-
-      const { error } = await supabase
-        .from('notifications')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', notificationId);
-
-      if (error) {
-        console.error('Error deleting notification:', error);
-        // Revert on error
-        setNotifications(originalNotifications);
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: 'Failed to delete notification'
-        });
-      } else {
-        toast({
-          title: 'Notification deleted',
-          description: 'The notification has been removed',
-        });
-      }
-    } catch (error) {
-      console.error('Error deleting notification:', error);
-    } finally {
-      setProcessingIds(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(notificationId);
-        return newSet;
+      toast({
+        title: 'All notifications cleared',
+        description: 'Your notifications have been cleared',
       });
-    }
-  };
-
-  const requestNotificationPermission = async () => {
-    if ('Notification' in window) {
-      try {
-        const permission = await Notification.requestPermission();
-        setNotificationPermission(permission);
-        
-        if (permission === 'granted') {
-          setSettings(prev => ({ ...prev, browser: true }));
-          toast({
-            title: 'Notifications enabled',
-            description: 'You will now receive push notifications'
-          });
-          
-          // Send a test notification
-          new Notification('Notifications Enabled!', {
-            body: 'You will now receive real-time notifications',
-            icon: '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png'
-          });
-        } else {
-          setSettings(prev => ({ ...prev, browser: false }));
-          toast({
-            variant: 'destructive',
-            title: 'Notifications blocked',
-            description: 'Please enable notifications in your browser settings'
-          });
-        }
-      } catch (error) {
-        console.error('Error requesting notification permission:', error);
-      }
-    }
-  };
-
-  const playNotificationSound = () => {
-    if (settings.sound) {
-      try {
-        const audio = new Audio('/sounds/click.mp3');
-        audio.volume = 0.3;
-        audio.play().catch(() => {
-          // Ignore audio play errors
-        });
-      } catch (error) {
-        // Ignore audio errors
-      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to clear notifications'
+      });
     }
   };
 
@@ -528,85 +338,14 @@ export function Notifications() {
   useEffect(() => {
     const filtered = filterNotifications(notifications);
     setNotificationGroups(groupNotificationsByDate(filtered));
+    setLoading(false);
   }, [notifications, selectedFilter, filterNotifications, groupNotificationsByDate]);
 
+  // Update settings when sound preference changes
   useEffect(() => {
-    fetchNotifications();
-    
-    // Check notification permission
-    if ('Notification' in window) {
-      setNotificationPermission(Notification.permission);
-    }
+    setSettings(prev => ({ ...prev, sound: soundEnabled }));
+  }, [soundEnabled]);
 
-    // Listen for online/offline status
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, [fetchNotifications]);
-
-  useEffect(() => {
-    if (currentUser) {
-      // Set up real-time subscription for notifications
-      channelRef.current = supabase
-        .channel('notifications-realtime')
-        .on('postgres_changes', 
-          { 
-            event: '*', 
-            schema: 'public', 
-            table: 'notifications',
-            filter: `user_id=eq.${currentUser.id}`
-          }, 
-          (payload) => {
-            console.log('Notification change:', payload);
-            
-            if (payload.eventType === 'INSERT') {
-              const newNotification = payload.new as Notification;
-              
-              // Add to state
-              setNotifications(prev => [newNotification, ...prev]);
-              
-              // Play sound
-              playNotificationSound();
-              
-              // Show browser notification if permission granted
-              if (notificationPermission === 'granted' && settings.browser) {
-                new Notification('New Notification', {
-                  body: newNotification.content,
-                  icon: '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png',
-                  tag: newNotification.type
-                });
-              }
-              
-              // Show toast
-              toast({
-                title: 'New notification',
-                description: newNotification.content,
-                duration: 4000
-              });
-            } else {
-              // Refresh for updates/deletes
-              fetchNotifications(false);
-            }
-          }
-        )
-        .subscribe();
-
-      return () => {
-        if (channelRef.current) {
-          supabase.removeChannel(channelRef.current);
-        }
-      };
-    }
-  }, [currentUser, notificationPermission, settings.browser, settings.sound, fetchNotifications, toast]);
-
-  const unreadCount = notifications.filter(n => !n.read).length;
   const filteredUnreadCount = filterNotifications(notifications).filter(n => !n.read).length;
 
   const filterOptions = [
@@ -678,6 +417,16 @@ export function Notifications() {
           
           <div className="flex items-center gap-2">
             <Button
+              onClick={handleRefresh}
+              size="icon"
+              variant="outline"
+              className="h-8 w-8 rounded-full hover-scale"
+              disabled={refreshing}
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            </Button>
+            
+            <Button
               onClick={() => setShowFilterDialog(true)}
               size="icon"
               variant="outline"
@@ -713,7 +462,7 @@ export function Notifications() {
                 <DropdownMenuSeparator />
                 {unreadCount > 0 && (
                   <DropdownMenuItem
-                    onClick={markAllAsRead}
+                    onClick={handleMarkAllAsRead}
                     className="font-pixelated text-xs"
                   >
                     <CheckCheck className="h-3 w-3 mr-2" />
@@ -735,7 +484,7 @@ export function Notifications() {
         </div>
 
         {/* Notification Permission Banner */}
-        {notificationPermission !== 'granted' && (
+        {!isGranted && (
           <div className="mx-4 mt-4 p-3 bg-social-blue/10 border border-social-blue/20 rounded-lg">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -746,7 +495,7 @@ export function Notifications() {
                 </div>
               </div>
               <Button
-                onClick={requestNotificationPermission}
+                onClick={requestPermission}
                 size="sm"
                 className="bg-social-blue hover:bg-social-blue/90 text-white font-pixelated text-xs"
               >
@@ -806,7 +555,7 @@ export function Notifications() {
                             ? `${getNotificationColor(notification.type)} shadow-sm` 
                             : 'border-l-muted bg-background'
                         } ${isProcessing ? 'opacity-50' : ''}`}
-                        onClick={() => !notification.read && !isProcessing && markAsRead(notification.id)}
+                        onClick={() => !notification.read && !isProcessing && handleMarkAsRead(notification.id)}
                       >
                         <CardContent className="p-4">
                           <div className="flex items-start gap-3">
@@ -861,7 +610,7 @@ export function Notifications() {
                                 <Button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    markAsRead(notification.id);
+                                    handleMarkAsRead(notification.id);
                                   }}
                                   size="icon"
                                   variant="ghost"
@@ -873,7 +622,7 @@ export function Notifications() {
                               <Button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  deleteNotification(notification.id);
+                                  handleDeleteNotification(notification.id);
                                 }}
                                 size="icon"
                                 variant="ghost"
@@ -933,14 +682,17 @@ export function Notifications() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label className="font-pixelated text-sm">Sound Notifications</Label>
+                    <Label className="font-pixelated text-sm flex items-center gap-2">
+                      {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                      Sound Notifications
+                    </Label>
                     <p className="font-pixelated text-xs text-muted-foreground">
                       Play sound when receiving notifications
                     </p>
                   </div>
                   <Switch
-                    checked={settings.sound}
-                    onCheckedChange={(checked) => setSettings(prev => ({ ...prev, sound: checked }))}
+                    checked={soundEnabled}
+                    onCheckedChange={setSoundEnabled}
                   />
                 </div>
 
@@ -952,12 +704,10 @@ export function Notifications() {
                     </p>
                   </div>
                   <Switch
-                    checked={settings.browser && notificationPermission === 'granted'}
+                    checked={isGranted}
                     onCheckedChange={(checked) => {
-                      if (checked && notificationPermission !== 'granted') {
-                        requestNotificationPermission();
-                      } else {
-                        setSettings(prev => ({ ...prev, browser: checked }));
+                      if (checked && !isGranted) {
+                        requestPermission();
                       }
                     }}
                   />
@@ -1098,7 +848,7 @@ export function Notifications() {
             <AlertDialogFooter>
               <AlertDialogCancel className="font-pixelated text-xs">Cancel</AlertDialogCancel>
               <AlertDialogAction
-                onClick={clearAllNotifications}
+                onClick={handleClearAll}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-pixelated text-xs"
               >
                 Clear All
