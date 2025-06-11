@@ -69,10 +69,16 @@ export function useEnhancedNotifications() {
     try {
       console.log('Fetching notifications for user:', userId);
       
-      // Simple query without complex joins first
       const { data, error } = await supabase
         .from('notifications')
-        .select('*')
+        .select(`
+          *,
+          sender_profile:profiles!notifications_reference_id_fkey(
+            name,
+            username,
+            avatar
+          )
+        `)
         .eq('user_id', userId)
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
@@ -80,7 +86,7 @@ export function useEnhancedNotifications() {
 
       if (error) {
         console.error('Error fetching notifications:', error);
-        // Create sample notifications if table exists but is empty
+        // Create sample notifications if none exist
         await createSampleNotifications(userId);
         return;
       }
@@ -89,15 +95,13 @@ export function useEnhancedNotifications() {
       
       const formattedNotifications = data?.map(notification => ({
         ...notification,
-        sender_profile: null // We'll add this later when we fix the relationships
+        sender_profile: notification.sender_profile || null
       })) || [];
 
       setNotifications(formattedNotifications);
       setUnreadCount(formattedNotifications.filter(n => !n.read).length);
     } catch (error) {
       console.error('Error in fetchNotifications:', error);
-      // If table doesn't exist, create sample data
-      await createSampleNotifications(userId);
     }
   }, []);
 
@@ -141,17 +145,34 @@ export function useEnhancedNotifications() {
           content: 'Alex Brown accepted your friend request',
           read: true,
           created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString() // 2 days ago
+        },
+        {
+          user_id: userId,
+          type: 'like',
+          content: 'Jessica Taylor liked your post',
+          read: false,
+          created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString() // 3 days ago
+        },
+        {
+          user_id: userId,
+          type: 'comment',
+          content: 'David Wilson commented on your post',
+          read: true,
+          created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 4).toISOString() // 4 days ago
+        },
+        {
+          user_id: userId,
+          type: 'friend_request',
+          content: 'Lisa Anderson sent you a friend request',
+          read: false,
+          created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString() // 5 days ago
         }
       ];
 
       for (const notification of sampleNotifications) {
-        try {
-          await supabase
-            .from('notifications')
-            .insert(notification);
-        } catch (insertError) {
-          console.log('Sample notification insert handled:', insertError);
-        }
+        await supabase
+          .from('notifications')
+          .insert(notification);
       }
       
       console.log('Sample notifications created successfully');
@@ -366,8 +387,177 @@ export function useEnhancedNotifications() {
         })
         .subscribe();
 
+      // Messages subscription for instant notifications
+      const messagesChannel = supabase
+        .channel(`messages-${currentUser.id}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `receiver_id=eq.${currentUser.id}`
+        }, async (payload) => {
+          const message = payload.new;
+          
+          // Get sender info
+          const { data: sender } = await supabase
+            .from('profiles')
+            .select('name, username')
+            .eq('id', message.sender_id)
+            .single();
+
+          if (sender) {
+            // Create notification
+            await createNotification(
+              currentUser.id,
+              'message',
+              `${sender.name} sent you a message`,
+              message.id
+            );
+          }
+        })
+        .subscribe();
+
+      // Friend requests subscription
+      const friendsChannel = supabase
+        .channel(`friends-${currentUser.id}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'friends',
+          filter: `receiver_id=eq.${currentUser.id}`
+        }, async (payload) => {
+          const friendship = payload.new;
+          
+          // Get sender info
+          const { data: sender } = await supabase
+            .from('profiles')
+            .select('name, username')
+            .eq('id', friendship.sender_id)
+            .single();
+
+          if (sender) {
+            // Create notification
+            await createNotification(
+              currentUser.id,
+              'friend_request',
+              `${sender.name} sent you a friend request`,
+              friendship.id
+            );
+          }
+        })
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'friends',
+          filter: `sender_id=eq.${currentUser.id}`
+        }, async (payload) => {
+          const friendship = payload.new;
+          
+          if (friendship.status === 'accepted') {
+            // Get receiver info
+            const { data: receiver } = await supabase
+              .from('profiles')
+              .select('name, username')
+              .eq('id', friendship.receiver_id)
+              .single();
+
+            if (receiver) {
+              // Create notification
+              await createNotification(
+                currentUser.id,
+                'friend_accepted',
+                `${receiver.name} accepted your friend request`,
+                friendship.id
+              );
+            }
+          }
+        })
+        .subscribe();
+
+      // Likes subscription
+      const likesChannel = supabase
+        .channel(`likes-${currentUser.id}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'likes'
+        }, async (payload) => {
+          const like = payload.new;
+          
+          // Check if this is a like on current user's post
+          const { data: post } = await supabase
+            .from('posts')
+            .select('user_id, content')
+            .eq('id', like.post_id)
+            .single();
+
+          if (post && post.user_id === currentUser.id && like.user_id !== currentUser.id) {
+            // Get liker info
+            const { data: liker } = await supabase
+              .from('profiles')
+              .select('name, username')
+              .eq('id', like.user_id)
+              .single();
+
+            if (liker) {
+              // Create notification
+              await createNotification(
+                currentUser.id,
+                'like',
+                `${liker.name} liked your post`,
+                like.post_id
+              );
+            }
+          }
+        })
+        .subscribe();
+
+      // Comments subscription
+      const commentsChannel = supabase
+        .channel(`comments-${currentUser.id}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'comments'
+        }, async (payload) => {
+          const comment = payload.new;
+          
+          // Check if this is a comment on current user's post
+          const { data: post } = await supabase
+            .from('posts')
+            .select('user_id, content')
+            .eq('id', comment.post_id)
+            .single();
+
+          if (post && post.user_id === currentUser.id && comment.user_id !== currentUser.id) {
+            // Get commenter info
+            const { data: commenter } = await supabase
+              .from('profiles')
+              .select('name, username')
+              .eq('id', comment.user_id)
+              .single();
+
+            if (commenter) {
+              // Create notification
+              await createNotification(
+                currentUser.id,
+                'comment',
+                `${commenter.name} commented on your post`,
+                comment.post_id
+              );
+            }
+          }
+        })
+        .subscribe();
+
       // Store channels for cleanup
-      channelsRef.current = [notificationsChannel];
+      channelsRef.current = [
+        notificationsChannel,
+        messagesChannel,
+        friendsChannel,
+        likesChannel,
+        commentsChannel
+      ];
     };
 
     setupRealtimeSubscriptions();
@@ -384,7 +574,7 @@ export function useEnhancedNotifications() {
       });
       channelsRef.current = [];
     };
-  }, [currentUser, isOnline, sendBrowserNotification, toast, playNotificationSound]);
+  }, [currentUser, isOnline, createNotification, sendBrowserNotification, toast, playNotificationSound]);
 
   // Request notification permission
   const requestPermission = useCallback(async () => {
