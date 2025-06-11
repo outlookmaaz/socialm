@@ -5,10 +5,7 @@ import { StoriesContainer } from '@/components/stories/StoriesContainer';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Send, Image as ImageIcon, X, Globe, Users } from 'lucide-react';
+import { Send, Image as ImageIcon, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -18,8 +15,6 @@ export function Dashboard() {
   const [isPosting, setIsPosting] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isPublic, setIsPublic] = useState(true); // true = public, false = friends only
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -89,10 +84,7 @@ export function Dashboard() {
           .from('posts')
           .upload(fileName, selectedImage);
 
-        if (uploadError) {
-          console.error('Upload error:', uploadError);
-          throw new Error('Failed to upload image. Please try again.');
-        }
+        if (uploadError) throw uploadError;
 
         const { data } = supabase.storage
           .from('posts')
@@ -101,113 +93,29 @@ export function Dashboard() {
         imageUrl = data.publicUrl;
       }
 
-      // Prepare post data - try with visibility first, fallback without it
-      const visibilityValue = isPublic ? 'public' : 'friends';
-      
-      console.log('Creating post with settings:', {
-        visibility: visibilityValue,
-        isPublic: isPublic,
-        content: postContent.trim().substring(0, 50) + '...',
-        hasImage: !!imageUrl
-      });
+      const { error } = await supabase
+        .from('posts')
+        .insert({
+          content: postContent.trim(),
+          user_id: user.id,
+          image_url: imageUrl
+        });
 
-      // First attempt: Try to create post with visibility
-      let postData = null;
-      let createError = null;
+      if (error) throw error;
 
-      try {
-        const { data: newPost, error } = await supabase
-          .from('posts')
-          .insert({
-            content: postContent.trim(),
-            user_id: user.id,
-            image_url: imageUrl,
-            visibility: visibilityValue
-          })
-          .select(`
-            id,
-            content,
-            image_url,
-            visibility,
-            created_at,
-            user_id,
-            profiles:user_id (
-              name,
-              username,
-              avatar
-            )
-          `)
-          .single();
-
-        if (error) {
-          createError = error;
-          console.error('Primary post creation error:', error);
-        } else {
-          postData = newPost;
-        }
-      } catch (err) {
-        createError = err;
-        console.error('Primary post creation exception:', err);
-      }
-
-      // If primary creation failed, try fallback without visibility
-      if (createError || !postData) {
-        console.log('Primary post creation failed, trying fallback...');
-        
-        const { data: fallbackPost, error: fallbackError } = await supabase
-          .from('posts')
-          .insert({
-            content: postContent.trim(),
-            user_id: user.id,
-            image_url: imageUrl
-            // No visibility field
-          })
-          .select(`
-            id,
-            content,
-            image_url,
-            created_at,
-            user_id,
-            profiles:user_id (
-              name,
-              username,
-              avatar
-            )
-          `)
-          .single();
-
-        if (fallbackError) {
-          console.error('Fallback post creation error:', fallbackError);
-          throw new Error(`Failed to create post: ${fallbackError.message}`);
-        }
-
-        postData = fallbackPost;
-        console.log('Fallback post creation successful');
-      }
-
-      console.log('Post created successfully:', postData);
-
-      // Show success message with privacy info
-      toast({
-        title: 'Post created!',
-        description: `Your ${isPublic ? 'public' : 'friends-only'} post has been shared successfully!`,
-        duration: 3000,
-      });
-
-      // Reset form but preserve privacy setting
       setPostContent('');
       removeImage();
       
-      // Trigger immediate refresh of the feed
-      setRefreshTrigger(prev => prev + 1);
-
-    } catch (error: any) {
+      toast({
+        title: 'Success',
+        description: 'Your post has been shared!'
+      });
+    } catch (error) {
       console.error('Error creating post:', error);
       toast({
         variant: 'destructive',
-        title: 'Failed to create post',
-        description: error.message || 'Please check your connection and try again.',
-        duration: 5000,
+        title: 'Error',
+        description: 'Failed to create post'
       });
     } finally {
       setIsPosting(false);
@@ -219,18 +127,6 @@ export function Dashboard() {
       e.preventDefault();
       handlePost();
     }
-  };
-
-  const handlePrivacyToggle = (checked: boolean) => {
-    console.log('Privacy toggle changed:', { from: isPublic, to: checked });
-    setIsPublic(checked);
-    
-    // Show immediate feedback
-    toast({
-      title: 'Privacy setting updated',
-      description: checked ? 'Next post will be visible to everyone' : 'Next post will be visible to friends only',
-      duration: 2000,
-    });
   };
 
   return (
@@ -272,39 +168,6 @@ export function Dashboard() {
                     </Button>
                   </div>
                 )}
-
-                {/* Privacy Settings */}
-                <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-social-green/10">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      {isPublic ? (
-                        <Globe className="h-4 w-4 text-social-blue" />
-                      ) : (
-                        <Users className="h-4 w-4 text-social-green" />
-                      )}
-                      <Label htmlFor="privacy-toggle" className="font-pixelated text-xs cursor-pointer">
-                        {isPublic ? 'Public Post' : 'Friends Only'}
-                      </Label>
-                    </div>
-                    <Badge 
-                      variant={isPublic ? "default" : "secondary"} 
-                      className={`font-pixelated text-xs transition-all duration-200 ${
-                        isPublic 
-                          ? 'bg-social-blue text-white border-social-blue' 
-                          : 'bg-social-green text-white border-social-green'
-                      }`}
-                    >
-                      {isPublic ? 'Everyone can see this' : 'Only friends can see this'}
-                    </Badge>
-                  </div>
-                  <Switch
-                    id="privacy-toggle"
-                    checked={isPublic}
-                    onCheckedChange={handlePrivacyToggle}
-                    disabled={isPosting}
-                    className="data-[state=checked]:bg-social-blue data-[state=unchecked]:bg-social-green transition-colors duration-200"
-                  />
-                </div>
                 
                 <div className="flex items-center justify-between gap-3 pt-1">
                   <div className="flex items-center gap-3">
@@ -337,15 +200,15 @@ export function Dashboard() {
                     className="bg-social-green hover:bg-social-light-green text-white font-pixelated h-9 px-4 hover:scale-105 transition-transform"
                   >
                     <Send className="h-4 w-4 mr-2" />
-                    {isPosting ? 'Posting...' : `Share ${isPublic ? 'Publicly' : 'to Friends'}`}
+                    {isPosting ? 'Posting...' : 'Share Post'}
                   </Button>
                 </div>
               </div>
             </CardContent>
           </Card>
           
-          {/* Feed with refresh trigger */}
-          <CommunityFeed key={refreshTrigger} refreshTrigger={refreshTrigger} />
+          {/* Feed */}
+          <CommunityFeed />
         </ScrollArea>
       </div>
     </DashboardLayout>

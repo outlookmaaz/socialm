@@ -308,7 +308,6 @@ export type Database = {
           updated_at: string
           user_id: string
           video_url: string | null
-          visibility: string | null
         }
         Insert: {
           content: string
@@ -318,7 +317,6 @@ export type Database = {
           updated_at?: string
           user_id: string
           video_url?: string | null
-          visibility?: string | null
         }
         Update: {
           content?: string
@@ -328,7 +326,6 @@ export type Database = {
           updated_at?: string
           user_id?: string
           video_url?: string | null
-          visibility?: string | null
         }
         Relationships: [
           {

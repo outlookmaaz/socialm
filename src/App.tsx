@@ -38,115 +38,76 @@ const queryClient = new QueryClient({
 const App = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { theme, colorTheme, setTheme, setColorTheme } = useTheme();
   
   useEffect(() => {
-    let mounted = true;
+    // Apply theme immediately on mount
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark', 'win95');
+    root.classList.add(theme);
+
+    // Apply color theme
+    root.classList.remove('theme-green', 'theme-blue', 'theme-red', 'theme-orange', 'theme-purple');
+    if (colorTheme !== 'green') {
+      root.classList.add(`theme-${colorTheme}`);
+    }
+
+    const faviconLink = document.querySelector("link[rel*='icon']") || document.createElement('link');
+    faviconLink.setAttribute('rel', 'shortcut icon');
+    faviconLink.setAttribute('href', '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png');
+    document.head.appendChild(faviconLink);
     
-    const initializeApp = async () => {
-      try {
-        console.log('Initializing app...');
+    document.title = "SocialChat - Connect with Friends";
+  }, [theme, colorTheme, setTheme, setColorTheme]);
+  
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.id);
         
-        // Initialize theme first
-        const root = window.document.documentElement;
-        root.classList.add('light'); // Default theme
-        
-        // Set favicon
-        const faviconLink = document.querySelector("link[rel*='icon']") || document.createElement('link');
-        faviconLink.setAttribute('rel', 'shortcut icon');
-        faviconLink.setAttribute('href', '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png');
-        document.head.appendChild(faviconLink);
-        
-        document.title = "SocialChat - Connect with Friends";
-        
-        // Get initial session
-        const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.error('Session error:', sessionError);
-          setError('Failed to initialize authentication');
-          return;
-        }
-        
-        if (mounted) {
-          console.log('Initial session:', initialSession?.user?.id || 'No session');
-          setSession(initialSession);
-        }
-        
-        // Set up auth state listener
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, session) => {
-            if (!mounted) return;
-            
-            console.log('Auth state changed:', event, session?.user?.id || 'No session');
-            
-            if (event === 'SIGNED_OUT') {
-              setSession(null);
-              localStorage.clear();
-              sessionStorage.clear();
-            } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-              setSession(session);
-            } else if (event === 'INITIAL_SESSION') {
-              setSession(session);
-            } else {
-              setSession(session);
-            }
-          }
-        );
-        
-        // Request notification permission on app load
-        if ('serviceWorker' in navigator && 'PushManager' in window) {
-          try {
-            const permission = await Notification.requestPermission();
-            console.log('Notification permission:', permission);
-          } catch (error) {
-            console.error("Error requesting notification permission:", error);
-          }
-        }
-        
-        return () => {
-          subscription.unsubscribe();
-        };
-        
-      } catch (error) {
-        console.error('App initialization error:', error);
-        if (mounted) {
-          setError('Failed to initialize app');
-        }
-      } finally {
-        if (mounted) {
-          // Add a small delay to show the loading animation
-          setTimeout(() => setLoading(false), 1000);
+        if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setLoading(false);
+          localStorage.clear();
+          sessionStorage.clear();
+        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          setSession(session);
+          setLoading(false);
+        } else if (event === 'INITIAL_SESSION') {
+          setSession(session);
+          setLoading(false);
+        } else {
+          setSession(session);
+          setLoading(false);
         }
       }
-    };
-    
-    initializeApp();
-    
+    );
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Initial session check:', session?.user?.id);
+      setSession(session);
+      // Add a small delay to show the loading animation
+      setTimeout(() => setLoading(false), 1500);
+    });
+
+    // Request notification permission on app load
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      try {
+        Notification.requestPermission().then(permission => {
+          console.log('Notification permission:', permission);
+        });
+      } catch (error) {
+        console.error("Error requesting notification permission:", error);
+      }
+    }
+
     return () => {
-      mounted = false;
+      subscription.unsubscribe();
     };
   }, []);
   
   if (loading) {
     return <LoadingScreen />;
-  }
-  
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center p-6">
-          <h1 className="text-2xl font-bold mb-4 text-destructive">App Error</h1>
-          <p className="text-muted-foreground mb-4">{error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-          >
-            Reload App
-          </button>
-        </div>
-      </div>
-    );
   }
 
   return (
