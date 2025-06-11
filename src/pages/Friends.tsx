@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Users, UserPlus, UserCheck, Search, MessageCircle, UserMinus, Clock, X, AlertTriangle } from 'lucide-react';
+import { Users, UserPlus, UserCheck, MessageCircle, UserMinus, Clock, X, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -519,12 +519,11 @@ export function Friends() {
           </div>
           
           <div className="relative max-w-sm">
-            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search friends..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 font-pixelated text-xs h-8"
+              className="font-pixelated text-xs h-8"
             />
           </div>
         </div>
