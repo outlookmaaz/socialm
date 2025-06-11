@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { supabase } from '@/integrations/supabase/client';
 
 type Theme = 'light' | 'dark' | 'win95';
 type ColorTheme = 'green' | 'blue' | 'red' | 'orange' | 'purple';
@@ -13,71 +12,28 @@ interface ThemeStore {
   confirmThemeChange: (theme: Theme | ColorTheme, type: 'theme' | 'color') => Promise<boolean>;
 }
 
-// Create a custom storage object that syncs with both localStorage and database
+// Simple localStorage storage
 const customStorage = {
-  getItem: async (name: string): Promise<string | null> => {
-    // First try to get from localStorage
-    const localTheme = localStorage.getItem(name);
-    if (localTheme) return localTheme;
-
-    // If not in localStorage, try to get from database
+  getItem: (name: string): string | null => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('theme_preference, color_theme')
-          .eq('id', user.id)
-          .single();
-        
-        if (data?.theme_preference) {
-          // Save to localStorage for faster access next time
-          localStorage.setItem(name, JSON.stringify({ 
-            state: { 
-              theme: data.theme_preference,
-              colorTheme: data.color_theme || 'green'
-            } 
-          }));
-          return JSON.stringify({ 
-            state: { 
-              theme: data.theme_preference,
-              colorTheme: data.color_theme || 'green'
-            } 
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching theme from database:', error);
-    }
-
-    // Default to light theme and green color theme if nothing is found
-    return JSON.stringify({ state: { theme: 'light', colorTheme: 'green' } });
-  },
-
-  setItem: async (name: string, value: string): Promise<void> => {
-    // Save to localStorage
-    localStorage.setItem(name, value);
-
-    // Save to database if user is logged in
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { theme, colorTheme } = JSON.parse(value).state;
-        await supabase
-          .from('profiles')
-          .update({ 
-            theme_preference: theme,
-            color_theme: colorTheme
-          })
-          .eq('id', user.id);
-      }
-    } catch (error) {
-      console.error('Error saving theme to database:', error);
+      return localStorage.getItem(name);
+    } catch {
+      return null;
     }
   },
-
+  setItem: (name: string, value: string): void => {
+    try {
+      localStorage.setItem(name, value);
+    } catch {
+      // Ignore storage errors
+    }
+  },
   removeItem: (name: string): void => {
-    localStorage.removeItem(name);
+    try {
+      localStorage.removeItem(name);
+    } catch {
+      // Ignore storage errors
+    }
   },
 };
 
