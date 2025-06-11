@@ -19,7 +19,6 @@ interface Friend {
   lastMessageTime?: string;
   lastMessageContent?: string;
   unreadCount?: number;
-  isOnline?: boolean;
 }
 
 interface Message {
@@ -121,8 +120,7 @@ export function Messages() {
               isBlocked: false,
               lastMessageTime: lastMessage?.created_at || friend.created_at,
               lastMessageContent: lastMessage?.content || '',
-              unreadCount: unreadCount || 0,
-              isOnline: Math.random() > 0.5 // Simulate online status
+              unreadCount: unreadCount || 0
             });
           }
         }
@@ -572,21 +570,15 @@ export function Messages() {
                           friend.unreadCount && friend.unreadCount > 0 ? 'bg-social-green/5 border-l-4 border-social-green' : ''
                         }`}
                       >
-                        <div className="relative">
-                          <Avatar className="h-10 w-10 border-2 border-background flex-shrink-0">
-                            {friend.avatar ? (
-                              <AvatarImage src={friend.avatar} />
-                            ) : (
-                              <AvatarFallback className="bg-primary text-primary-foreground font-pixelated text-xs">
-                                {friend.name.substring(0, 2).toUpperCase()}
-                              </AvatarFallback>
-                            )}
-                          </Avatar>
-                          {/* Online Status Indicator */}
-                          {friend.isOnline && (
-                            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-social-green rounded-full border-2 border-background"></div>
+                        <Avatar className="h-10 w-10 border-2 border-background flex-shrink-0">
+                          {friend.avatar ? (
+                            <AvatarImage src={friend.avatar} />
+                          ) : (
+                            <AvatarFallback className="bg-primary text-primary-foreground font-pixelated text-xs">
+                              {friend.name.substring(0, 2).toUpperCase()}
+                            </AvatarFallback>
                           )}
-                        </div>
+                        </Avatar>
                         
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
@@ -662,33 +654,19 @@ export function Messages() {
                   >
                     <ArrowLeft className="h-4 w-4" />
                   </Button>
-                  <div className="relative">
-                    <Avatar className="h-8 w-8 flex-shrink-0">
-                      {selectedFriend.avatar ? (
-                        <AvatarImage src={selectedFriend.avatar} />
-                      ) : (
-                        <AvatarFallback className="bg-primary text-primary-foreground font-pixelated text-xs">
-                          {selectedFriend.name.substring(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      )}
-                    </Avatar>
-                    {/* Online Status in Header */}
-                    {selectedFriend.isOnline && (
-                      <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-social-green rounded-full border border-background"></div>
+                  <Avatar className="h-8 w-8 flex-shrink-0">
+                    {selectedFriend.avatar ? (
+                      <AvatarImage src={selectedFriend.avatar} />
+                    ) : (
+                      <AvatarFallback className="bg-primary text-primary-foreground font-pixelated text-xs">
+                        {selectedFriend.name.substring(0, 2).toUpperCase()}
+                      </AvatarFallback>
                     )}
-                  </div>
+                  </Avatar>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium truncate text-sm font-pixelated">{selectedFriend.name}</p>
-                      {selectedFriend.isOnline && (
-                        <Circle className="h-2 w-2 fill-social-green text-social-green" />
-                      )}
-                    </div>
+                    <p className="font-medium truncate text-sm font-pixelated">{selectedFriend.name}</p>
                     <p className="text-xs text-muted-foreground truncate font-pixelated">
                       @{selectedFriend.username}
-                      {selectedFriend.isOnline && (
-                        <span className="ml-2 text-social-green">• Online</span>
-                      )}
                       {selectedFriend.isBlocked && (
                         <span className="ml-2 text-destructive font-pixelated">
                           • No longer friends
