@@ -6,7 +6,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
-import { useNotifications } from "@/hooks/use-notifications";
 import { LoadingScreen } from "@/components/ui/loading-screen";
 import { useTheme } from "@/hooks/use-theme";
 
@@ -39,7 +38,6 @@ const queryClient = new QueryClient({
 const App = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const { setupAllNotifications } = useNotifications();
   const { theme, colorTheme, setTheme, setColorTheme } = useTheme();
   
   useEffect(() => {
@@ -60,19 +58,7 @@ const App = () => {
     document.head.appendChild(faviconLink);
     
     document.title = "SocialChat - Connect with Friends";
-    
-    let cleanupNotifications: (() => void) | undefined;
-    
-    if (session) {
-      cleanupNotifications = setupAllNotifications(session.user.id);
-    }
-    
-    return () => {
-      if (cleanupNotifications) {
-        cleanupNotifications();
-      }
-    };
-  }, [session, setupAllNotifications, theme, colorTheme, setTheme, setColorTheme]);
+  }, [theme, colorTheme, setTheme, setColorTheme]);
   
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -104,6 +90,7 @@ const App = () => {
       setTimeout(() => setLoading(false), 1500);
     });
 
+    // Request notification permission on app load
     if ('serviceWorker' in navigator && 'PushManager' in window) {
       try {
         Notification.requestPermission().then(permission => {
@@ -133,15 +120,15 @@ const App = () => {
             {/* Public Routes */}
             <Route 
               path="/" 
-              element={session ? <Navigate to="/dashboard\" replace /> : <Index />} 
+              element={session ? <Navigate to="/dashboard" replace /> : <Index />} 
             />
             <Route 
               path="/login" 
-              element={session ? <Navigate to="/dashboard\" replace /> : <Login />} 
+              element={session ? <Navigate to="/dashboard" replace /> : <Login />} 
             />
             <Route 
               path="/register" 
-              element={session ? <Navigate to="/dashboard\" replace /> : <Register />} 
+              element={session ? <Navigate to="/dashboard" replace /> : <Register />} 
             />
             
             {/* Protected Routes */}

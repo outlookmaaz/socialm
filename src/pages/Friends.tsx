@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Users, UserPlus, UserCheck, Search, MessageCircle, UserMinus, Clock, X } from 'lucide-react';
+import { Users, UserPlus, UserCheck, Search, MessageCircle, UserMinus, Clock, X, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
@@ -43,6 +43,7 @@ export function Friends() {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [showRemoveDialog, setShowRemoveDialog] = useState<{show: boolean, friend: Friend | null}>({show: false, friend: null});
+  const [removingFriend, setRemovingFriend] = useState<string | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -56,7 +57,7 @@ export function Friends() {
       fetchFriendRequests();
       fetchSuggestedFriends();
       
-      // Set up real-time subscriptions
+      // Set up real-time subscriptions with enhanced error handling
       const friendsChannel = supabase
         .channel('friends-realtime')
         .on('postgres_changes', 
@@ -307,42 +308,33 @@ export function Friends() {
   };
 
   const removeFriend = async (friend: Friend) => {
-    try {
-      if (!friend.friend_id || !currentUser) {
-        console.error('No friend ID or current user provided');
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: 'Unable to remove friend - missing information',
-        });
-        return;
-      }
+    if (!friend.friend_id || !currentUser || removingFriend) {
+      console.error('No friend ID or current user provided');
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Unable to remove friend - missing information',
+      });
+      return;
+    }
 
+    try {
+      setRemovingFriend(friend.id);
       console.log('Removing friend:', {
         friendId: friend.friend_id,
         friendUserId: friend.id,
         currentUserId: currentUser.id
       });
 
-      // First, try to delete using the friendship ID
-      let { error } = await supabase
+      // Delete the friendship record
+      const { error } = await supabase
         .from('friends')
         .delete()
         .eq('id', friend.friend_id);
 
-      // If that fails, try alternative approach using user IDs
       if (error) {
-        console.log('First deletion failed, trying alternative approach:', error);
-        
-        const { error: altError } = await supabase
-          .from('friends')
-          .delete()
-          .or(`and(sender_id.eq.${currentUser.id},receiver_id.eq.${friend.id}),and(sender_id.eq.${friend.id},receiver_id.eq.${currentUser.id})`);
-
-        if (altError) {
-          console.error('Alternative deletion also failed:', altError);
-          throw altError;
-        }
+        console.error('Error removing friend:', error);
+        throw error;
       }
 
       console.log('Friend removed from database successfully');
@@ -392,6 +384,8 @@ export function Friends() {
         title: 'Error',
         description: 'Failed to remove friend. Please try again.',
       });
+    } finally {
+      setRemovingFriend(null);
     }
   };
 
@@ -447,9 +441,10 @@ export function Friends() {
                   size="sm"
                   variant="destructive"
                   className="font-pixelated text-xs h-6"
+                  disabled={removingFriend === user.id}
                 >
                   <UserMinus className="h-3 w-3 mr-1" />
-                  Remove
+                  {removingFriend === user.id ? 'Removing...' : 'Remove'}
                 </Button>
               </>
             )}
@@ -543,7 +538,7 @@ export function Friends() {
             <TabsTrigger value="friends" className="font-pixelated text-xs relative">
               Friends
               {friends.length > 0 && (
-                <Badge variant="secondary\" className="ml-2 h-4 w-4 p-0 text-xs">
+                <Badge variant="secondary" className="ml-2 h-4 w-4 p-0 text-xs">
                   {friends.length}
                 </Badge>
               )}
@@ -551,7 +546,7 @@ export function Friends() {
             <TabsTrigger value="requests" className="font-pixelated text-xs relative">
               Requests
               {requests.length > 0 && (
-                <Badge variant="destructive\" className="ml-2 h-4 w-4 p-0 text-xs animate-pulse">
+                <Badge variant="destructive" className="ml-2 h-4 w-4 p-0 text-xs animate-pulse">
                   {requests.length}
                 </Badge>
               )}
@@ -559,7 +554,7 @@ export function Friends() {
             <TabsTrigger value="suggested" className="font-pixelated text-xs relative">
               Suggested
               {suggested.length > 0 && (
-                <Badge variant="outline\" className="ml-2 h-4 w-4 p-0 text-xs">
+                <Badge variant="outline" className="ml-2 h-4 w-4 p-0 text-xs">
                   {suggested.length}
                 </Badge>
               )}
@@ -647,7 +642,10 @@ export function Friends() {
           <AlertDialogContent className="max-w-md mx-auto animate-in zoom-in-95 duration-200">
             <AlertDialogHeader>
               <div className="flex items-center justify-between">
-                <AlertDialogTitle className="font-pixelated text-sm">Remove Friend</AlertDialogTitle>
+                <AlertDialogTitle className="font-pixelated text-sm flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-destructive" />
+                  Remove Friend
+                </AlertDialogTitle>
                 <Button
                   onClick={() => setShowRemoveDialog({show: false, friend: null})}
                   size="icon"
@@ -670,9 +668,10 @@ export function Friends() {
                     removeFriend(showRemoveDialog.friend);
                   }
                 }}
+                disabled={removingFriend !== null}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-pixelated text-xs"
               >
-                Remove Friend
+                {removingFriend ? 'Removing...' : 'Remove Friend'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

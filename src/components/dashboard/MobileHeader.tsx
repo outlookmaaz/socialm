@@ -12,9 +12,11 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { UserSearch } from './UserSearch';
 import { useToast } from '@/hooks/use-toast';
+import { useEnhancedNotifications } from '@/hooks/use-enhanced-notifications';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,6 +47,7 @@ export function MobileHeader() {
   const [user, setUser] = useState<any>(null);
   const [open, setOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const { unreadCount } = useEnhancedNotifications();
   const { toast } = useToast();
   
   useEffect(() => {
@@ -95,7 +98,23 @@ export function MobileHeader() {
     { path: '/dashboard', label: 'Home', icon: <Home className="h-5 w-5" /> },
     { path: '/friends', label: 'Friends', icon: <Users className="h-5 w-5" /> },
     { path: '/messages', label: 'Messages', icon: <MessageSquare className="h-5 w-5" /> },
-    { path: '/notifications', label: 'Notifications', icon: <Bell className="h-5 w-5" /> },
+    { 
+      path: '/notifications', 
+      label: 'Notifications', 
+      icon: (
+        <div className="relative">
+          <Bell className="h-5 w-5" />
+          {unreadCount > 0 && (
+            <Badge 
+              variant="destructive" 
+              className="absolute -top-2 -right-2 h-4 w-4 p-0 text-xs flex items-center justify-center animate-pulse"
+            >
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </Badge>
+          )}
+        </div>
+      )
+    },
     { path: '/profile', label: 'Profile', icon: <User className="h-5 w-5" /> },
   ];
 
@@ -113,7 +132,7 @@ export function MobileHeader() {
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="p-0 w-72 flex flex-col h-full animate-in slide-in-from-left-2 duration-300">
-                {/* Header without close button */}
+                {/* Header */}
                 <div className="flex items-center justify-center p-4 border-b shrink-0 bg-gradient-to-r from-social-light-green to-social-blue">
                   <img 
                     src="/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png" 
@@ -163,6 +182,11 @@ export function MobileHeader() {
                       >
                         {tab.icon}
                         <span>{tab.label}</span>
+                        {tab.path === '/notifications' && unreadCount > 0 && (
+                          <Badge variant="secondary" className="ml-auto h-4 px-2 text-xs">
+                            {unreadCount}
+                          </Badge>
+                        )}
                       </Link>
                     ))}
                   </div>
@@ -199,7 +223,7 @@ export function MobileHeader() {
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="p-0 h-8 w-8 rounded-full hover-scale">
+              <Button variant="ghost" className="p-0 h-8 w-8 rounded-full hover-scale relative">
                 <Avatar className="h-8 w-8">
                   {user?.avatar ? (
                     <AvatarImage src={user.avatar} alt={user?.name} />
@@ -209,6 +233,14 @@ export function MobileHeader() {
                     </AvatarFallback>
                   )}
                 </Avatar>
+                {unreadCount > 0 && (
+                  <Badge 
+                    variant="destructive" 
+                    className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs flex items-center justify-center animate-pulse"
+                  >
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </Badge>
+                )}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56 animate-in slide-in-from-top-2 duration-200">
@@ -218,6 +250,19 @@ export function MobileHeader() {
                 <DropdownMenuItem className="font-pixelated hover-scale">
                   <User className="mr-2 h-4 w-4" />
                   Profile
+                </DropdownMenuItem>
+              </Link>
+              <Link to="/notifications">
+                <DropdownMenuItem className="font-pixelated hover-scale">
+                  <div className="flex items-center">
+                    <Bell className="mr-2 h-4 w-4" />
+                    Notifications
+                    {unreadCount > 0 && (
+                      <Badge variant="destructive" className="ml-auto h-4 px-2 text-xs">
+                        {unreadCount}
+                      </Badge>
+                    )}
+                  </div>
                 </DropdownMenuItem>
               </Link>
               <DropdownMenuSeparator />
@@ -238,7 +283,7 @@ export function MobileHeader() {
             <Link 
               key={tab.path} 
               to={tab.path} 
-              className={`flex flex-col items-center justify-center py-2 font-pixelated transition-all duration-200 hover-scale ${
+              className={`flex flex-col items-center justify-center py-2 font-pixelated transition-all duration-200 hover-scale relative ${
                 isActive(tab.path) 
                   ? 'text-white bg-social-dark-green shadow-md' 
                   : 'text-muted-foreground hover:bg-muted/50'
@@ -268,7 +313,7 @@ export function MobileHeader() {
               Sign Out
             </AlertDialogAction>
           </AlertDialogFooter>
-        </AlertDialogContent>
+        </AlertDialogFooter>
       </AlertDialog>
     </>
   );
