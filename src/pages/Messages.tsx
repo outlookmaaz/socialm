@@ -51,6 +51,7 @@ export function Messages() {
   const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
 
   const fetchFriends = async () => {
@@ -328,7 +329,13 @@ export function Messages() {
         
       if (error) throw error;
 
+      // Clear message immediately for better UX
       setNewMessage('');
+      
+      // Reset textarea height
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
       
       if (data) {
         const newMessageWithSender = {
@@ -410,6 +417,23 @@ export function Messages() {
   const truncateMessage = (message: string, maxLength: number = 30) => {
     if (message.length <= maxLength) return message;
     return message.substring(0, maxLength) + '...';
+  };
+
+  // Auto-resize textarea
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNewMessage(e.target.value);
+    
+    // Auto-resize textarea
+    const textarea = e.target;
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
   };
 
   useEffect(() => {
@@ -605,7 +629,7 @@ export function Messages() {
                               ) : friend.lastMessageContent ? (
                                 truncateMessage(friend.lastMessageContent)
                               ) : (
-                                `@${friend.username}`
+                                <span className="text-muted-foreground italic">Start chatting with {friend.name}!</span>
                               )}
                             </p>
                             
@@ -781,7 +805,7 @@ export function Messages() {
                   </ScrollArea>
                 </div>
 
-                {/* Message Input */}
+                {/* Message Input - Improved for faster sending */}
                 <div className="p-3 border-t bg-background flex-shrink-0">
                   {selectedFriend.isBlocked ? (
                     <div className="text-center py-2">
@@ -791,26 +815,25 @@ export function Messages() {
                     </div>
                   ) : (
                     <>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 items-end">
                         <Textarea 
+                          ref={textareaRef}
                           placeholder="Type a message..." 
                           value={newMessage}
-                          onChange={(e) => setNewMessage(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault();
-                              sendMessage();
-                            }
-                          }}
-                          className="min-h-[40px] max-h-[100px] resize-none flex-1 font-pixelated text-xs"
+                          onChange={handleTextareaChange}
+                          onKeyDown={handleKeyDown}
+                          className="min-h-[40px] max-h-[120px] resize-none flex-1 font-pixelated text-xs"
                           disabled={sendingMessage || selectedFriend.isBlocked}
+                          style={{ height: 'auto' }}
                         />
                         <Button
                           onClick={sendMessage}
                           disabled={!newMessage.trim() || sendingMessage || selectedFriend.isBlocked}
-                          className="bg-primary hover:bg-primary/90 flex-shrink-0 h-10 w-10"
+                          className={`bg-primary hover:bg-primary/90 flex-shrink-0 h-10 w-10 transition-all duration-200 ${
+                            newMessage.trim() && !sendingMessage ? 'scale-110 shadow-lg' : ''
+                          }`}
                         >
-                          <Send className="h-4 w-4" />
+                          <Send className={`h-4 w-4 ${sendingMessage ? 'animate-pulse' : ''}`} />
                         </Button>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1 font-pixelated">
