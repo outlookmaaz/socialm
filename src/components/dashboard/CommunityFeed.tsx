@@ -32,7 +32,7 @@ interface Post {
   id: string;
   content: string;
   image_url: string | null;
-  visibility: 'public' | 'friends';
+  visibility?: 'public' | 'friends';
   created_at: string;
   user_id: string;
   profiles: {
@@ -138,6 +138,17 @@ export function CommunityFeed() {
 
   const fetchPosts = useCallback(async () => {
     try {
+      console.log('Fetching posts...');
+      
+      // First, let's try a simple query to see if posts exist at all
+      const { data: allPosts, error: allPostsError } = await supabase
+        .from('posts')
+        .select('id, content, visibility')
+        .limit(5);
+
+      console.log('All posts check:', allPosts, allPostsError);
+
+      // Now fetch posts with full data
       const { data, error } = await supabase
         .from('posts')
         .select(`
@@ -171,11 +182,64 @@ export function CommunityFeed() {
 
       if (error) {
         console.error('Error fetching posts:', error);
+        
+        // If visibility column doesn't exist, try without it
+        if (error.message?.includes('visibility')) {
+          console.log('Trying without visibility column...');
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('posts')
+            .select(`
+              id,
+              content,
+              image_url,
+              created_at,
+              user_id,
+              profiles:user_id (
+                name,
+                username,
+                avatar
+              ),
+              likes (
+                id,
+                user_id
+              ),
+              comments (
+                id,
+                content,
+                created_at,
+                user_id,
+                profiles:user_id (
+                  name,
+                  avatar
+                )
+              )
+            `)
+            .order('created_at', { ascending: false });
+
+          if (fallbackError) {
+            throw fallbackError;
+          }
+
+          const formattedFallbackPosts = fallbackData?.map(post => ({
+            ...post,
+            visibility: 'public' as const, // Default to public for existing posts
+            _count: {
+              likes: post.likes?.length || 0,
+              comments: post.comments?.length || 0
+            }
+          })) || [];
+
+          setPosts(formattedFallbackPosts);
+          console.log('Loaded posts (fallback):', formattedFallbackPosts.length);
+          return;
+        }
+        
         throw error;
       }
 
       const formattedPosts = data?.map(post => ({
         ...post,
+        visibility: post.visibility || 'public', // Default to public if not set
         _count: {
           likes: post.likes?.length || 0,
           comments: post.comments?.length || 0
@@ -183,6 +247,7 @@ export function CommunityFeed() {
       })) || [];
 
       setPosts(formattedPosts);
+      console.log('Loaded posts:', formattedPosts.length);
     } catch (error) {
       console.error('Error fetching posts:', error);
       toast({
@@ -190,6 +255,7 @@ export function CommunityFeed() {
         title: 'Error',
         description: 'Failed to load posts. Please refresh the page.'
       });
+      setPosts([]); // Set empty array to show "no posts" message
     } finally {
       setLoading(false);
     }
@@ -443,7 +509,10 @@ export function CommunityFeed() {
       .channel('posts-realtime')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'posts' }, 
-        () => fetchPosts()
+        () => {
+          console.log('Posts changed, refetching...');
+          fetchPosts();
+        }
       )
       .subscribe();
 
@@ -562,7 +631,7 @@ export function CommunityFeed() {
                         >
                           {post.profiles?.name}
                         </p>
-                        {getVisibilityBadge(post.visibility)}
+                        {getVisibilityBadge(post.visibility || 'public')}
                       </div>
                       <p 
                         className="font-pixelated text-xs text-muted-foreground cursor-pointer hover:text-social-green transition-colors"

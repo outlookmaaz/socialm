@@ -100,17 +100,45 @@ export function Dashboard() {
         imageUrl = data.publicUrl;
       }
 
-      // Insert post with visibility setting
-      const { error } = await supabase
-        .from('posts')
-        .insert({
-          content: postContent.trim(),
-          user_id: user.id,
-          image_url: imageUrl,
-          visibility: isPublic ? 'public' : 'friends'
-        });
+      // Try to insert with visibility first, fallback without it if column doesn't exist
+      let insertData: any = {
+        content: postContent.trim(),
+        user_id: user.id,
+        image_url: imageUrl
+      };
 
-      if (error) {
+      // Try with visibility column first
+      try {
+        insertData.visibility = isPublic ? 'public' : 'friends';
+        const { error } = await supabase
+          .from('posts')
+          .insert(insertData);
+
+        if (error) {
+          // If visibility column doesn't exist, try without it
+          if (error.message?.includes('visibility')) {
+            console.log('Visibility column not found, posting without privacy setting...');
+            delete insertData.visibility;
+            const { error: fallbackError } = await supabase
+              .from('posts')
+              .insert(insertData);
+            
+            if (fallbackError) throw fallbackError;
+            
+            toast({
+              title: 'Post created!',
+              description: 'Your post has been shared (privacy features will be available soon)',
+            });
+          } else {
+            throw error;
+          }
+        } else {
+          toast({
+            title: 'Success',
+            description: `Your ${isPublic ? 'public' : 'friends-only'} post has been shared!`
+          });
+        }
+      } catch (error) {
         console.error('Post creation error:', error);
         throw new Error('Failed to create post. Please try again.');
       }
@@ -120,10 +148,6 @@ export function Dashboard() {
       removeImage();
       setIsPublic(true); // Reset to public by default
       
-      toast({
-        title: 'Success',
-        description: `Your ${isPublic ? 'public' : 'friends-only'} post has been shared!`
-      });
     } catch (error: any) {
       console.error('Error creating post:', error);
       toast({
