@@ -14,7 +14,6 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import { UserSearch } from './UserSearch';
 import { useToast } from '@/hooks/use-toast';
 import { useEnhancedNotifications } from '@/hooks/use-enhanced-notifications';
 import {
@@ -161,8 +160,6 @@ export function MobileHeader() {
                       <p className="text-xs text-muted-foreground font-pixelated">@{user?.username || 'guest'}</p>
                     </div>
                   </div>
-                  
-                  <UserSearch />
                 </div>
                 
                 {/* Navigation section */}
