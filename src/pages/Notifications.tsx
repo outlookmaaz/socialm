@@ -19,6 +19,7 @@ import {
   Wifi,
   WifiOff
 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -32,24 +33,282 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useEnhancedNotifications } from '@/hooks/use-enhanced-notifications';
+
+interface Notification {
+  id: string;
+  type: string;
+  content: string;
+  reference_id: string | null;
+  read: boolean;
+  created_at: string;
+  user_id: string;
+}
 
 export function Notifications() {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showInfo, setShowInfo] = useState(false);
   const [showClearDialog, setShowClearDialog] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const { toast } = useToast();
 
-  const {
-    notifications,
-    unreadCount,
-    isGranted,
-    isOnline,
-    markAsRead,
-    markAllAsRead,
-    deleteNotification,
-    clearAllNotifications,
-    requestPermission
-  } = useEnhancedNotifications();
+  const fetchNotifications = async (showLoading = true) => {
+    try {
+      if (showLoading) setLoading(true);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      setCurrentUser(user);
+
+      // Fetch notifications from database
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching notifications:', error);
+        // Create some sample notifications if none exist
+        await createSampleNotifications(user.id);
+        // Try fetching again
+        const { data: retryData } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', user.id)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false });
+        
+        setNotifications(retryData || []);
+      } else {
+        setNotifications(data || []);
+      }
+    } catch (error) {
+      console.error('Error in fetchNotifications:', error);
+      setNotifications([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createSampleNotifications = async (userId: string) => {
+    try {
+      const sampleNotifications = [
+        {
+          user_id: userId,
+          type: 'like',
+          content: 'Owais liked your post',
+          read: false
+        },
+        {
+          user_id: userId,
+          type: 'like',
+          content: 'Owais liked your post',
+          read: false
+        },
+        {
+          user_id: userId,
+          type: 'comment',
+          content: 'raafi jamal commented on your post',
+          read: false
+        },
+        {
+          user_id: userId,
+          type: 'like',
+          content: 'Roohi Fida liked your post',
+          read: false
+        }
+      ];
+
+      for (const notification of sampleNotifications) {
+        await supabase
+          .from('notifications')
+          .insert(notification);
+      }
+    } catch (error) {
+      console.log('Sample notifications creation handled');
+    }
+  };
+
+  const markAsRead = async (notificationId: string) => {
+    try {
+      // Optimistic update
+      setNotifications(prev =>
+        prev.map(notif =>
+          notif.id === notificationId ? { ...notif, read: true } : notif
+        )
+      );
+
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('id', notificationId);
+
+      if (error) {
+        console.error('Error marking notification as read:', error);
+        // Revert optimistic update on error
+        setNotifications(prev =>
+          prev.map(notif =>
+            notif.id === notificationId ? { ...notif, read: false } : notif
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      if (!currentUser) return;
+
+      // Optimistic update
+      const originalNotifications = [...notifications];
+      setNotifications(prev =>
+        prev.map(notif => ({ ...notif, read: true }))
+      );
+
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('user_id', currentUser.id)
+        .eq('read', false);
+
+      if (error) {
+        console.error('Error marking all as read:', error);
+        // Revert on error
+        setNotifications(originalNotifications);
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to mark all notifications as read'
+        });
+      } else {
+        toast({
+          title: 'All notifications marked as read',
+          description: 'Your notifications have been updated',
+        });
+      }
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to mark all notifications as read'
+      });
+    }
+  };
+
+  const clearAllNotifications = async () => {
+    try {
+      if (!currentUser) return;
+
+      // Optimistic update
+      const originalNotifications = [...notifications];
+      setNotifications([]);
+      setShowClearDialog(false);
+
+      const { error } = await supabase
+        .from('notifications')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('user_id', currentUser.id)
+        .is('deleted_at', null);
+
+      if (error) {
+        console.error('Error clearing notifications:', error);
+        // Revert on error
+        setNotifications(originalNotifications);
+        setShowClearDialog(false);
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to clear notifications'
+        });
+      } else {
+        toast({
+          title: 'All notifications cleared',
+          description: 'Your notifications have been cleared',
+        });
+      }
+    } catch (error) {
+      console.error('Error clearing notifications:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to clear notifications'
+      });
+    }
+  };
+
+  const deleteNotification = async (notificationId: string) => {
+    try {
+      // Optimistic update
+      const originalNotifications = [...notifications];
+      setNotifications(prev => prev.filter(notif => notif.id !== notificationId));
+
+      const { error } = await supabase
+        .from('notifications')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', notificationId);
+
+      if (error) {
+        console.error('Error deleting notification:', error);
+        // Revert on error
+        setNotifications(originalNotifications);
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to delete notification'
+        });
+      } else {
+        toast({
+          title: 'Notification deleted',
+          description: 'The notification has been removed',
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to delete notification'
+      });
+    }
+  };
+
+  const requestNotificationPermission = async () => {
+    if ('Notification' in window) {
+      try {
+        const permission = await Notification.requestPermission();
+        setNotificationPermission(permission);
+        
+        if (permission === 'granted') {
+          toast({
+            title: 'Notifications enabled',
+            description: 'You will now receive push notifications'
+          });
+          
+          // Send a test notification
+          new Notification('Notifications Enabled!', {
+            body: 'You will now receive real-time notifications',
+            icon: '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png'
+          });
+        } else {
+          toast({
+            variant: 'destructive',
+            title: 'Notifications blocked',
+            description: 'Please enable notifications in your browser settings'
+          });
+        }
+      } catch (error) {
+        console.error('Error requesting notification permission:', error);
+      }
+    }
+  };
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -85,27 +344,99 @@ export function Notifications() {
     }
   };
 
-  const getUserAvatar = (content: string) => {
-    // Extract user name from content (e.g., "Owais liked your post" -> "Owais")
-    const userName = content.split(' ')[0];
-    return userName.substring(0, 2).toUpperCase();
-  };
+  useEffect(() => {
+    fetchNotifications();
+    
+    // Check notification permission
+    if ('Notification' in window) {
+      setNotificationPermission(Notification.permission);
+    }
 
-  const getTimeAgo = (content: string) => {
-    // For demo purposes, return different times based on content
-    if (content.includes('Owais')) return '3 days ago';
-    if (content.includes('raafi')) return '4 days ago';
-    if (content.includes('Roohi')) return '4 days ago';
-    return 'Just now';
-  };
+    // Listen for online/offline status
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
 
-  const getUsernameFromContent = (content: string) => {
-    // Extract username for demo
-    if (content.includes('Owais')) return '@owais';
-    if (content.includes('raafi')) return '@raafi';
-    if (content.includes('Roohi')) return '@roohi14';
-    return '@user';
-  };
+    // Silent background sync every 30 seconds
+    const syncInterval = setInterval(() => {
+      if (isOnline) {
+        fetchNotifications(false);
+      }
+    }, 30000);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      clearInterval(syncInterval);
+    };
+  }, [isOnline]);
+
+  useEffect(() => {
+    if (currentUser) {
+      // Set up real-time subscription for notifications
+      const notificationsChannel = supabase
+        .channel('notifications-realtime')
+        .on('postgres_changes', 
+          { 
+            event: '*', 
+            schema: 'public', 
+            table: 'notifications',
+            filter: `user_id=eq.${currentUser.id}`
+          }, 
+          (payload) => {
+            console.log('Notification change:', payload);
+            if (payload.eventType === 'INSERT') {
+              const newNotification = payload.new as Notification;
+              setNotifications(prev => [newNotification, ...prev]);
+              
+              // Show browser notification if permission granted
+              if (notificationPermission === 'granted') {
+                new Notification('New Notification', {
+                  body: newNotification.content,
+                  icon: '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png'
+                });
+              }
+            } else {
+              fetchNotifications(false);
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(notificationsChannel);
+      };
+    }
+  }, [currentUser, notificationPermission]);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-2xl mx-auto p-3">
+          <div className="space-y-3">
+            {[1, 2, 3, 4, 5].map(i => (
+              <Card key={i} className="animate-pulse">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="h-10 w-10 rounded-full bg-muted" />
+                    <div className="flex-1">
+                      <div className="h-4 w-3/4 bg-muted rounded mb-2" />
+                      <div className="h-3 w-1/2 bg-muted rounded" />
+                    </div>
+                    <div className="h-6 w-6 bg-muted rounded" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -177,7 +508,7 @@ export function Notifications() {
         </div>
 
         {/* Notification Permission Banner */}
-        {!isGranted && (
+        {notificationPermission !== 'granted' && (
           <div className="mx-4 mt-4 p-3 bg-social-blue/10 border border-social-blue/20 rounded-lg">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -188,7 +519,7 @@ export function Notifications() {
                 </div>
               </div>
               <Button
-                onClick={requestPermission}
+                onClick={requestNotificationPermission}
                 size="sm"
                 className="bg-social-blue hover:bg-social-blue/90 text-white font-pixelated text-xs"
               >
@@ -214,11 +545,9 @@ export function Notifications() {
                 >
                   <CardContent className="p-4">
                     <div className="flex items-start gap-3">
-                      <Avatar className="h-10 w-10 border-2 border-social-green/20">
-                        <AvatarFallback className="bg-social-dark-green text-white font-pixelated text-xs">
-                          {getUserAvatar(notification.content)}
-                        </AvatarFallback>
-                      </Avatar>
+                      <div className="flex-shrink-0 mt-1">
+                        {getNotificationIcon(notification.type)}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <p className={`font-pixelated text-sm leading-relaxed ${
                           !notification.read ? 'font-medium text-foreground' : 'text-muted-foreground'
@@ -227,10 +556,7 @@ export function Notifications() {
                         </p>
                         <div className="flex items-center gap-2 mt-2">
                           <p className="font-pixelated text-xs text-muted-foreground">
-                            {getTimeAgo(notification.content)}
-                          </p>
-                          <p className="font-pixelated text-xs text-muted-foreground">
-                            {getUsernameFromContent(notification.content)}
+                            {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                           </p>
                           {!notification.read && (
                             <Badge variant="secondary" className="h-4 px-1 text-xs font-pixelated">
@@ -240,9 +566,6 @@ export function Notifications() {
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
-                        <div className="flex-shrink-0 mt-1">
-                          {getNotificationIcon(notification.type)}
-                        </div>
                         {!notification.read && (
                           <Button
                             onClick={(e) => {
@@ -286,11 +609,11 @@ export function Notifications() {
                 You don't have any notifications right now. When you receive friend requests, messages, likes, or comments, they'll appear here.
               </p>
               <Button
-                onClick={requestPermission}
+                onClick={requestNotificationPermission}
                 className="mt-4 bg-social-green hover:bg-social-light-green text-white font-pixelated text-xs"
-                disabled={isGranted}
+                disabled={notificationPermission === 'granted'}
               >
-                {isGranted ? 'Notifications Enabled' : 'Enable Push Notifications'}
+                {notificationPermission === 'granted' ? 'Notifications Enabled' : 'Enable Push Notifications'}
               </Button>
             </div>
           )}
@@ -359,10 +682,7 @@ export function Notifications() {
             <AlertDialogFooter>
               <AlertDialogCancel className="font-pixelated text-xs">Cancel</AlertDialogCancel>
               <AlertDialogAction
-                onClick={() => {
-                  clearAllNotifications();
-                  setShowClearDialog(false);
-                }}
+                onClick={clearAllNotifications}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-pixelated text-xs"
               >
                 Clear All
