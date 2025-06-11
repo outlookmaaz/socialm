@@ -93,6 +93,22 @@ export function MobileHeader() {
     }
   };
 
+  const handleTabClick = (path: string) => {
+    if (path === '/dashboard') {
+      if (location.pathname === '/dashboard') {
+        // If already on dashboard, scroll to top
+        const event = new CustomEvent('scrollToTop');
+        window.dispatchEvent(event);
+      } else {
+        // Navigate to dashboard
+        window.location.href = path;
+      }
+    } else {
+      // Navigate to other routes normally
+      window.location.href = path;
+    }
+  };
+
   const tabs: MobileTab[] = [
     { path: '/dashboard', label: 'Home', icon: <Home className="h-5 w-5" /> },
     { path: '/friends', label: 'Friends', icon: <Users className="h-5 w-5" /> },
@@ -167,15 +183,17 @@ export function MobileHeader() {
                   <h4 className="text-sm font-pixelated mb-3">Main Navigation</h4>
                   <div className="space-y-2">
                     {tabs.map((tab) => (
-                      <Link
+                      <div
                         key={tab.path}
-                        to={tab.path}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-pixelated transition-all duration-200 hover-scale ${
+                        onClick={() => {
+                          setOpen(false);
+                          handleTabClick(tab.path);
+                        }}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-pixelated transition-all duration-200 hover-scale cursor-pointer ${
                           isActive(tab.path) 
                             ? 'bg-social-dark-green text-white shadow-md'
                             : 'hover:bg-muted/50'
                         }`}
-                        onClick={() => setOpen(false)}
                       >
                         {tab.icon}
                         <span>{tab.label}</span>
@@ -184,7 +202,7 @@ export function MobileHeader() {
                             {unreadCount}
                           </Badge>
                         )}
-                      </Link>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -206,7 +224,10 @@ export function MobileHeader() {
               </SheetContent>
             </Sheet>
             
-            <Link to="/dashboard" className="flex items-center gap-2">
+            <div 
+              onClick={() => handleTabClick('/dashboard')}
+              className="flex items-center gap-2 cursor-pointer"
+            >
               <img 
                 src="/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png" 
                 alt="SocialChat" 
@@ -215,7 +236,7 @@ export function MobileHeader() {
               <h1 className="font-pixelated text-base">
                 <span className="social-gradient bg-clip-text text-transparent">SocialChat</span>
               </h1>
-            </Link>
+            </div>
           </div>
           
           <DropdownMenu>
@@ -277,17 +298,17 @@ export function MobileHeader() {
         {/* Bottom Navigation - Icons Only */}
         <nav className="grid grid-cols-5 border-t bg-background">
           {tabs.map((tab) => (
-            <Link 
+            <div
               key={tab.path} 
-              to={tab.path} 
-              className={`flex flex-col items-center justify-center py-2 font-pixelated transition-all duration-200 hover-scale relative ${
+              onClick={() => handleTabClick(tab.path)}
+              className={`flex flex-col items-center justify-center py-2 font-pixelated transition-all duration-200 hover-scale relative cursor-pointer ${
                 isActive(tab.path) 
                   ? 'text-white bg-social-dark-green shadow-md' 
                   : 'text-muted-foreground hover:bg-muted/50'
               }`}
             >
               {tab.icon}
-            </Link>
+            </div>
           ))}
         </nav>
       </header>

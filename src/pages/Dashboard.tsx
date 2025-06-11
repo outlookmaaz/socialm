@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { CommunityFeed } from '@/components/dashboard/CommunityFeed';
 import { StoriesContainer } from '@/components/stories/StoriesContainer';
@@ -16,7 +16,28 @@ export function Dashboard() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const postBoxRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  // Listen for scroll to top event
+  useEffect(() => {
+    const handleScrollToTop = () => {
+      if (scrollAreaRef.current) {
+        // Scroll to the post box (top of feed)
+        scrollAreaRef.current.scrollTo({
+          top: 0,
+          behavior: 'smooth'
+        });
+      }
+    };
+
+    window.addEventListener('scrollToTop', handleScrollToTop);
+    
+    return () => {
+      window.removeEventListener('scrollToTop', handleScrollToTop);
+    };
+  }, []);
 
   const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -136,9 +157,9 @@ export function Dashboard() {
         <StoriesContainer />
         
         {/* Scrollable Content Area */}
-        <ScrollArea className="h-[calc(100vh-180px)] px-2">
+        <ScrollArea ref={scrollAreaRef} className="h-[calc(100vh-180px)] px-2">
           {/* Post Box */}
-          <Card className="mb-4 card-gradient animate-fade-in shadow-lg border-2 border-social-green/10">
+          <Card ref={postBoxRef} className="mb-4 card-gradient animate-fade-in shadow-lg border-2 border-social-green/10">
             <CardContent className="p-4">
               <div className="space-y-4">
                 <Textarea

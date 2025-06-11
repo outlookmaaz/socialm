@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { MobileHeader } from './MobileHeader';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -24,6 +23,22 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const currentRoute = getRouteFromPath(currentPath);
 
+  const handleTabClick = (route: string) => {
+    if (route === 'dashboard') {
+      if (currentPath === '/dashboard') {
+        // If already on dashboard, scroll to top
+        const event = new CustomEvent('scrollToTop');
+        window.dispatchEvent(event);
+      } else {
+        // Navigate to dashboard
+        navigate('/dashboard');
+      }
+    } else {
+      // Navigate to other routes normally
+      navigate(`/${route}`);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col w-full">
       <div className="dev-banner text-xs font-pixelated">
@@ -38,35 +53,35 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 <TabsList className="nav-tabs w-fit overflow-x-auto">
                   <TabsTrigger 
                     value="dashboard" 
-                    onClick={() => navigate('/dashboard')}
+                    onClick={() => handleTabClick('dashboard')}
                     className={`nav-tab ${currentRoute === 'dashboard' ? 'active' : ''} font-pixelated p-2`}
                   >
                     <Home className="h-4 w-4" />
                   </TabsTrigger>
                   <TabsTrigger 
                     value="friends" 
-                    onClick={() => navigate('/friends')}
+                    onClick={() => handleTabClick('friends')}
                     className={`nav-tab ${currentRoute === 'friends' ? 'active' : ''} font-pixelated p-2`}
                   >
                     <Users className="h-4 w-4" />
                   </TabsTrigger>
                   <TabsTrigger 
                     value="messages" 
-                    onClick={() => navigate('/messages')}
+                    onClick={() => handleTabClick('messages')}
                     className={`nav-tab ${currentRoute === 'messages' ? 'active' : ''} font-pixelated p-2`}
                   >
                     <MessageSquare className="h-4 w-4" />
                   </TabsTrigger>
                   <TabsTrigger 
                     value="notifications" 
-                    onClick={() => navigate('/notifications')}
+                    onClick={() => handleTabClick('notifications')}
                     className={`nav-tab ${currentRoute === 'notifications' ? 'active' : ''} font-pixelated p-2`}
                   >
                     <Bell className="h-4 w-4" />
                   </TabsTrigger>
                   <TabsTrigger 
                     value="profile" 
-                    onClick={() => navigate('/profile')}
+                    onClick={() => handleTabClick('profile')}
                     className={`nav-tab ${currentRoute === 'profile' ? 'active' : ''} font-pixelated p-2`}
                   >
                     <User className="h-4 w-4" />
