@@ -1,6 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
-import { getAnalytics } from 'firebase/analytics';
+import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAXDc6PR-m2MBa0oklp9ObJggDmnvvn4RQ",
@@ -16,23 +15,36 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firebase Cloud Messaging and get a reference to the service
-export const messaging = getMessaging(app);
+let messaging: any = null;
 
-// Initialize Analytics
-export const analytics = getAnalytics(app);
+// Check if messaging is supported
+const initializeMessaging = async () => {
+  try {
+    const supported = await isSupported();
+    if (supported) {
+      messaging = getMessaging(app);
+    }
+  } catch (error) {
+    console.log('Firebase messaging not supported:', error);
+  }
+};
 
-export { app };
+// Initialize messaging
+initializeMessaging();
+
+export { app, messaging };
 
 // Request permission and get FCM token
 export const requestNotificationPermission = async () => {
   try {
+    if (!messaging) return null;
+    
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
-      const token = await getToken(messaging, {
-        vapidKey: 'YOUR_VAPID_KEY' // You'll need to generate this in Firebase Console
-      });
-      console.log('FCM Token:', token);
-      return token;
+      // Note: You'll need to add your VAPID key from Firebase Console
+      // For now, we'll just return a success without the token
+      console.log('Notification permission granted');
+      return 'permission-granted';
     }
     return null;
   } catch (error) {
@@ -44,6 +56,11 @@ export const requestNotificationPermission = async () => {
 // Listen for foreground messages
 export const onMessageListener = () =>
   new Promise((resolve) => {
+    if (!messaging) {
+      resolve(null);
+      return;
+    }
+    
     onMessage(messaging, (payload) => {
       resolve(payload);
     });

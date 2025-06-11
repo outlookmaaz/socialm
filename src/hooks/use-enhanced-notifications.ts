@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { requestNotificationPermission, onMessageListener } from '@/config/firebase';
 
 interface NotificationData {
   id: string;
@@ -25,23 +24,22 @@ export function useEnhancedNotifications() {
   // Initialize user and permissions
   useEffect(() => {
     const initializeNotifications = async () => {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setCurrentUser(user);
-        
-        // Check notification permission
-        if ('Notification' in window) {
-          setIsGranted(Notification.permission === 'granted');
+      try {
+        // Get current user
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setCurrentUser(user);
           
-          // Request Firebase permission
-          if (Notification.permission === 'granted') {
-            await requestNotificationPermission();
+          // Check notification permission
+          if ('Notification' in window) {
+            setIsGranted(Notification.permission === 'granted');
           }
+          
+          // Load initial notifications
+          await fetchNotifications(user.id);
         }
-        
-        // Load initial notifications
-        await fetchNotifications(user.id);
+      } catch (error) {
+        console.error('Error initializing notifications:', error);
       }
     };
 
@@ -71,7 +69,10 @@ export function useEnhancedNotifications() {
         .order('created_at', { ascending: false })
         .limit(50);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching notifications:', error);
+        return;
+      }
 
       setNotifications(data || []);
       setUnreadCount(data?.filter(n => !n.read).length || 0);
@@ -452,23 +453,6 @@ export function useEnhancedNotifications() {
     };
   }, [currentUser, isOnline, createNotification, sendBrowserNotification, toast]);
 
-  // Firebase foreground message listener
-  useEffect(() => {
-    if (isGranted) {
-      onMessageListener()
-        .then((payload: any) => {
-          console.log('Received foreground message:', payload);
-          
-          toast({
-            title: payload.notification?.title || 'New Notification',
-            description: payload.notification?.body || 'You have a new notification',
-            duration: 5000
-          });
-        })
-        .catch((err) => console.log('Failed to receive message:', err));
-    }
-  }, [isGranted, toast]);
-
   // Request notification permission
   const requestPermission = useCallback(async () => {
     try {
@@ -476,8 +460,6 @@ export function useEnhancedNotifications() {
       setIsGranted(permission === 'granted');
       
       if (permission === 'granted') {
-        await requestNotificationPermission();
-        
         toast({
           title: 'Notifications enabled',
           description: 'You will now receive real-time notifications',

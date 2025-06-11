@@ -254,7 +254,7 @@ export function MobileHeader() {
               </Link>
               <Link to="/notifications">
                 <DropdownMenuItem className="font-pixelated hover-scale">
-                  <div className="flex items-center">
+                  <div className="flex items-center w-full">
                     <Bell className="mr-2 h-4 w-4" />
                     Notifications
                     {unreadCount > 0 && (
@@ -313,7 +313,7 @@ export function MobileHeader() {
               Sign Out
             </AlertDialogAction>
           </AlertDialogFooter>
-        </AlertDialogFooter>
+        </AlertDialogContent>
       </AlertDialog>
     </>
   );
