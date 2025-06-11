@@ -18,7 +18,6 @@ export function Dashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const postBoxRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
 
   // Listen for scroll to top event with improved implementation
@@ -86,16 +85,6 @@ export function Dashboard() {
     }
   };
 
-  const resetForm = () => {
-    setPostContent('');
-    removeImage();
-    
-    // Reset textarea height
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
-  };
-
   const handlePost = async () => {
     if ((!postContent.trim() && !selectedImage) || isPosting) return;
 
@@ -142,18 +131,13 @@ export function Dashboard() {
 
       if (error) throw error;
 
-      // Reset form immediately for better UX
-      resetForm();
+      setPostContent('');
+      removeImage();
       
       toast({
         title: 'Success',
-        description: 'Your post has been shared!',
-        duration: 3000,
+        description: 'Your post has been shared!'
       });
-
-      // Note: The post will appear automatically via real-time subscription
-      // No need to manually refresh or fetch posts
-      
     } catch (error) {
       console.error('Error creating post:', error);
       toast({
@@ -173,16 +157,6 @@ export function Dashboard() {
     }
   };
 
-  // Auto-resize textarea
-  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setPostContent(e.target.value);
-    
-    // Auto-resize textarea
-    const textarea = e.target;
-    textarea.style.height = 'auto';
-    textarea.style.height = Math.min(textarea.scrollHeight, 160) + 'px';
-  };
-
   return (
     <DashboardLayout>
       <div className="max-w-2xl mx-auto relative h-[calc(100vh-60px)]">
@@ -196,15 +170,12 @@ export function Dashboard() {
             <CardContent className="p-4">
               <div className="space-y-4">
                 <Textarea
-                  ref={textareaRef}
                   placeholder="What's on your mind? Share your thoughts..."
                   value={postContent}
-                  onChange={handleTextareaChange}
+                  onChange={(e) => setPostContent(e.target.value)}
                   onKeyDown={handleKeyDown}
                   className="w-full min-h-[80px] max-h-[160px] font-pixelated text-sm resize-none focus:ring-2 focus:ring-social-green/20 transition-all duration-200"
                   disabled={isPosting}
-                  autoComplete="off"
-                  style={{ height: 'auto' }}
                 />
                 
                 {/* Image Preview */}
@@ -216,12 +187,10 @@ export function Dashboard() {
                       className="max-h-60 w-full object-cover"
                     />
                     <Button
-                      type="button"
                       variant="destructive"
                       size="icon"
                       className="absolute top-2 right-2 h-7 w-7 rounded-full shadow-lg hover:scale-105 transition-transform"
                       onClick={removeImage}
-                      disabled={isPosting}
                     >
                       <X className="h-3 w-3" />
                     </Button>
@@ -256,11 +225,9 @@ export function Dashboard() {
                     onClick={handlePost}
                     disabled={(!postContent.trim() && !selectedImage) || isPosting}
                     size="sm"
-                    className={`bg-social-green hover:bg-social-light-green text-white font-pixelated h-9 px-4 transition-all duration-200 ${
-                      (postContent.trim() || selectedImage) && !isPosting ? 'scale-110 shadow-lg' : ''
-                    }`}
+                    className="bg-social-green hover:bg-social-light-green text-white font-pixelated h-9 px-4 hover:scale-105 transition-transform"
                   >
-                    <Send className={`h-4 w-4 mr-2 ${isPosting ? 'animate-pulse' : ''}`} />
+                    <Send className="h-4 w-4 mr-2" />
                     {isPosting ? 'Posting...' : 'Share Post'}
                   </Button>
                 </div>
