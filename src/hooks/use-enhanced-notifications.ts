@@ -33,6 +33,12 @@ export function useEnhancedNotifications() {
           // Check notification permission
           if ('Notification' in window) {
             setIsGranted(Notification.permission === 'granted');
+            
+            // Auto-request permission if not set
+            if (Notification.permission === 'default') {
+              const permission = await Notification.requestPermission();
+              setIsGranted(permission === 'granted');
+            }
           }
           
           // Load initial notifications
@@ -211,7 +217,7 @@ export function useEnhancedNotifications() {
     }
   }, [currentUser]);
 
-  // Setup real-time subscriptions
+  // Setup real-time subscriptions with immediate notification creation
   useEffect(() => {
     if (!currentUser) return;
 
@@ -222,9 +228,9 @@ export function useEnhancedNotifications() {
       });
       channelsRef.current = [];
 
-      // Notifications subscription
+      // Notifications subscription - listen for new notifications
       const notificationsChannel = supabase
-        .channel(`notifications-${currentUser.id}`)
+        .channel(`notifications-realtime-${currentUser.id}`)
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
@@ -233,7 +239,7 @@ export function useEnhancedNotifications() {
         }, async (payload) => {
           const newNotification = payload.new as NotificationData;
           
-          // Add to state
+          // Add to state immediately
           setNotifications(prev => [newNotification, ...prev]);
           setUnreadCount(prev => prev + 1);
 
@@ -261,12 +267,17 @@ export function useEnhancedNotifications() {
           setNotifications(prev =>
             prev.map(n => n.id === updatedNotification.id ? updatedNotification : n)
           );
+          
+          // Update unread count
+          if (updatedNotification.read) {
+            setUnreadCount(prev => Math.max(0, prev - 1));
+          }
         })
         .subscribe();
 
-      // Messages subscription for instant notifications
+      // Messages subscription - create notification immediately when message received
       const messagesChannel = supabase
-        .channel(`messages-${currentUser.id}`)
+        .channel(`messages-realtime-${currentUser.id}`)
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
@@ -283,20 +294,40 @@ export function useEnhancedNotifications() {
             .single();
 
           if (sender) {
-            // Create notification
-            await createNotification(
+            // Create notification immediately
+            const notification = await createNotification(
               currentUser.id,
               'message',
               `${sender.name} sent you a message`,
               message.id
             );
+
+            if (notification) {
+              // Add to state immediately (don't wait for the notifications channel)
+              setNotifications(prev => [notification, ...prev]);
+              setUnreadCount(prev => prev + 1);
+
+              // Show browser notification
+              sendBrowserNotification('New Message', {
+                body: `${sender.name}: ${message.content.substring(0, 50)}${message.content.length > 50 ? '...' : ''}`,
+                tag: 'message',
+                data: { id: notification.id, type: 'message' }
+              });
+
+              // Show toast
+              toast({
+                title: 'New Message',
+                description: `${sender.name} sent you a message`,
+                duration: 4000
+              });
+            }
           }
         })
         .subscribe();
 
       // Friend requests subscription
       const friendsChannel = supabase
-        .channel(`friends-${currentUser.id}`)
+        .channel(`friends-realtime-${currentUser.id}`)
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
@@ -313,13 +344,33 @@ export function useEnhancedNotifications() {
             .single();
 
           if (sender) {
-            // Create notification
-            await createNotification(
+            // Create notification immediately
+            const notification = await createNotification(
               currentUser.id,
               'friend_request',
               `${sender.name} sent you a friend request`,
               friendship.id
             );
+
+            if (notification) {
+              // Add to state immediately
+              setNotifications(prev => [notification, ...prev]);
+              setUnreadCount(prev => prev + 1);
+
+              // Show browser notification
+              sendBrowserNotification('Friend Request', {
+                body: `${sender.name} sent you a friend request`,
+                tag: 'friend_request',
+                data: { id: notification.id, type: 'friend_request' }
+              });
+
+              // Show toast
+              toast({
+                title: 'Friend Request',
+                description: `${sender.name} sent you a friend request`,
+                duration: 4000
+              });
+            }
           }
         })
         .on('postgres_changes', {
@@ -339,13 +390,33 @@ export function useEnhancedNotifications() {
               .single();
 
             if (receiver) {
-              // Create notification
-              await createNotification(
+              // Create notification immediately
+              const notification = await createNotification(
                 currentUser.id,
                 'friend_accepted',
                 `${receiver.name} accepted your friend request`,
                 friendship.id
               );
+
+              if (notification) {
+                // Add to state immediately
+                setNotifications(prev => [notification, ...prev]);
+                setUnreadCount(prev => prev + 1);
+
+                // Show browser notification
+                sendBrowserNotification('Friend Request Accepted', {
+                  body: `${receiver.name} accepted your friend request`,
+                  tag: 'friend_accepted',
+                  data: { id: notification.id, type: 'friend_accepted' }
+                });
+
+                // Show toast
+                toast({
+                  title: 'Friend Request Accepted',
+                  description: `${receiver.name} accepted your friend request`,
+                  duration: 4000
+                });
+              }
             }
           }
         })
@@ -353,7 +424,7 @@ export function useEnhancedNotifications() {
 
       // Likes subscription
       const likesChannel = supabase
-        .channel(`likes-${currentUser.id}`)
+        .channel(`likes-realtime-${currentUser.id}`)
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
@@ -377,13 +448,33 @@ export function useEnhancedNotifications() {
               .single();
 
             if (liker) {
-              // Create notification
-              await createNotification(
+              // Create notification immediately
+              const notification = await createNotification(
                 currentUser.id,
                 'like',
                 `${liker.name} liked your post`,
                 like.post_id
               );
+
+              if (notification) {
+                // Add to state immediately
+                setNotifications(prev => [notification, ...prev]);
+                setUnreadCount(prev => prev + 1);
+
+                // Show browser notification
+                sendBrowserNotification('New Like', {
+                  body: `${liker.name} liked your post`,
+                  tag: 'like',
+                  data: { id: notification.id, type: 'like' }
+                });
+
+                // Show toast
+                toast({
+                  title: 'New Like',
+                  description: `${liker.name} liked your post`,
+                  duration: 3000
+                });
+              }
             }
           }
         })
@@ -391,7 +482,7 @@ export function useEnhancedNotifications() {
 
       // Comments subscription
       const commentsChannel = supabase
-        .channel(`comments-${currentUser.id}`)
+        .channel(`comments-realtime-${currentUser.id}`)
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
@@ -415,13 +506,33 @@ export function useEnhancedNotifications() {
               .single();
 
             if (commenter) {
-              // Create notification
-              await createNotification(
+              // Create notification immediately
+              const notification = await createNotification(
                 currentUser.id,
                 'comment',
                 `${commenter.name} commented on your post`,
                 comment.post_id
               );
+
+              if (notification) {
+                // Add to state immediately
+                setNotifications(prev => [notification, ...prev]);
+                setUnreadCount(prev => prev + 1);
+
+                // Show browser notification
+                sendBrowserNotification('New Comment', {
+                  body: `${commenter.name} commented on your post`,
+                  tag: 'comment',
+                  data: { id: notification.id, type: 'comment' }
+                });
+
+                // Show toast
+                toast({
+                  title: 'New Comment',
+                  description: `${commenter.name} commented on your post`,
+                  duration: 3000
+                });
+              }
             }
           }
         })
@@ -479,6 +590,17 @@ export function useEnhancedNotifications() {
       return false;
     }
   }, [sendBrowserNotification, toast]);
+
+  // Auto-refresh notifications every 10 seconds for better performance
+  useEffect(() => {
+    if (!currentUser || !isOnline) return;
+
+    const refreshInterval = setInterval(() => {
+      fetchNotifications(currentUser.id);
+    }, 10000);
+
+    return () => clearInterval(refreshInterval);
+  }, [currentUser, isOnline, fetchNotifications]);
 
   return {
     notifications,
