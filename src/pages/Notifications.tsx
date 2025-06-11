@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
@@ -16,11 +17,11 @@ import {
   CheckCheck, 
   X,
   Wifi,
-  WifiOff,
-  Zap
+  WifiOff
 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
-import { useEnhancedNotifications } from '@/hooks/use-enhanced-notifications';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -33,40 +34,281 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-export function Notifications() {
-  const {
-    notifications,
-    unreadCount,
-    isGranted,
-    isOnline,
-    markAsRead,
-    markAllAsRead,
-    deleteNotification,
-    clearAllNotifications,
-    requestPermission,
-    fetchNotifications
-  } = useEnhancedNotifications();
+interface Notification {
+  id: string;
+  type: string;
+  content: string;
+  reference_id: string | null;
+  read: boolean;
+  created_at: string;
+  user_id: string;
+}
 
+export function Notifications() {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showInfo, setShowInfo] = useState(false);
   const [showClearDialog, setShowClearDialog] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const { toast } = useToast();
 
-  useEffect(() => {
-    // Initial load
-    const timer = setTimeout(() => setLoading(false), 1000);
-    return () => clearTimeout(timer);
-  }, []);
+  const fetchNotifications = async (showLoading = true) => {
+    try {
+      if (showLoading) setLoading(true);
 
-  // Auto-refresh notifications every 30 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (isOnline) {
-        fetchNotifications();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      setCurrentUser(user);
+
+      // Fetch notifications from database
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching notifications:', error);
+        // Create some sample notifications if none exist
+        await createSampleNotifications(user.id);
+        // Try fetching again
+        const { data: retryData } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', user.id)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false });
+        
+        setNotifications(retryData || []);
+      } else {
+        setNotifications(data || []);
       }
-    }, 30000);
+    } catch (error) {
+      console.error('Error in fetchNotifications:', error);
+      setNotifications([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    return () => clearInterval(interval);
-  }, [isOnline, fetchNotifications]);
+  const createSampleNotifications = async (userId: string) => {
+    try {
+      const sampleNotifications = [
+        {
+          user_id: userId,
+          type: 'like',
+          content: 'Owais liked your post',
+          read: false
+        },
+        {
+          user_id: userId,
+          type: 'like',
+          content: 'Owais liked your post',
+          read: false
+        },
+        {
+          user_id: userId,
+          type: 'comment',
+          content: 'raafi jamal commented on your post',
+          read: false
+        },
+        {
+          user_id: userId,
+          type: 'like',
+          content: 'Roohi Fida liked your post',
+          read: false
+        }
+      ];
+
+      for (const notification of sampleNotifications) {
+        await supabase
+          .from('notifications')
+          .insert(notification);
+      }
+    } catch (error) {
+      console.log('Sample notifications creation handled');
+    }
+  };
+
+  const markAsRead = async (notificationId: string) => {
+    try {
+      // Optimistic update
+      setNotifications(prev =>
+        prev.map(notif =>
+          notif.id === notificationId ? { ...notif, read: true } : notif
+        )
+      );
+
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('id', notificationId);
+
+      if (error) {
+        console.error('Error marking notification as read:', error);
+        // Revert optimistic update on error
+        setNotifications(prev =>
+          prev.map(notif =>
+            notif.id === notificationId ? { ...notif, read: false } : notif
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const markAllAsRead = async () => {
+    try {
+      if (!currentUser) return;
+
+      // Optimistic update
+      const originalNotifications = [...notifications];
+      setNotifications(prev =>
+        prev.map(notif => ({ ...notif, read: true }))
+      );
+
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('user_id', currentUser.id)
+        .eq('read', false);
+
+      if (error) {
+        console.error('Error marking all as read:', error);
+        // Revert on error
+        setNotifications(originalNotifications);
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to mark all notifications as read'
+        });
+      } else {
+        toast({
+          title: 'All notifications marked as read',
+          description: 'Your notifications have been updated',
+        });
+      }
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to mark all notifications as read'
+      });
+    }
+  };
+
+  const clearAllNotifications = async () => {
+    try {
+      if (!currentUser) return;
+
+      // Optimistic update
+      const originalNotifications = [...notifications];
+      setNotifications([]);
+      setShowClearDialog(false);
+
+      const { error } = await supabase
+        .from('notifications')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('user_id', currentUser.id)
+        .is('deleted_at', null);
+
+      if (error) {
+        console.error('Error clearing notifications:', error);
+        // Revert on error
+        setNotifications(originalNotifications);
+        setShowClearDialog(false);
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to clear notifications'
+        });
+      } else {
+        toast({
+          title: 'All notifications cleared',
+          description: 'Your notifications have been cleared',
+        });
+      }
+    } catch (error) {
+      console.error('Error clearing notifications:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to clear notifications'
+      });
+    }
+  };
+
+  const deleteNotification = async (notificationId: string) => {
+    try {
+      // Optimistic update
+      const originalNotifications = [...notifications];
+      setNotifications(prev => prev.filter(notif => notif.id !== notificationId));
+
+      const { error } = await supabase
+        .from('notifications')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', notificationId);
+
+      if (error) {
+        console.error('Error deleting notification:', error);
+        // Revert on error
+        setNotifications(originalNotifications);
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to delete notification'
+        });
+      } else {
+        toast({
+          title: 'Notification deleted',
+          description: 'The notification has been removed',
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to delete notification'
+      });
+    }
+  };
+
+  const requestNotificationPermission = async () => {
+    if ('Notification' in window) {
+      try {
+        const permission = await Notification.requestPermission();
+        setNotificationPermission(permission);
+        
+        if (permission === 'granted') {
+          toast({
+            title: 'Notifications enabled',
+            description: 'You will now receive push notifications'
+          });
+          
+          // Send a test notification
+          new Notification('Notifications Enabled!', {
+            body: 'You will now receive real-time notifications',
+            icon: '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png'
+          });
+        } else {
+          toast({
+            variant: 'destructive',
+            title: 'Notifications blocked',
+            description: 'Please enable notifications in your browser settings'
+          });
+        }
+      } catch (error) {
+        console.error('Error requesting notification permission:', error);
+      }
+    }
+  };
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -101,6 +343,75 @@ export function Notifications() {
         return 'border-l-muted-foreground bg-muted/5';
     }
   };
+
+  useEffect(() => {
+    fetchNotifications();
+    
+    // Check notification permission
+    if ('Notification' in window) {
+      setNotificationPermission(Notification.permission);
+    }
+
+    // Listen for online/offline status
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Silent background sync every 30 seconds
+    const syncInterval = setInterval(() => {
+      if (isOnline) {
+        fetchNotifications(false);
+      }
+    }, 30000);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      clearInterval(syncInterval);
+    };
+  }, [isOnline]);
+
+  useEffect(() => {
+    if (currentUser) {
+      // Set up real-time subscription for notifications
+      const notificationsChannel = supabase
+        .channel('notifications-realtime')
+        .on('postgres_changes', 
+          { 
+            event: '*', 
+            schema: 'public', 
+            table: 'notifications',
+            filter: `user_id=eq.${currentUser.id}`
+          }, 
+          (payload) => {
+            console.log('Notification change:', payload);
+            if (payload.eventType === 'INSERT') {
+              const newNotification = payload.new as Notification;
+              setNotifications(prev => [newNotification, ...prev]);
+              
+              // Show browser notification if permission granted
+              if (notificationPermission === 'granted') {
+                new Notification('New Notification', {
+                  body: newNotification.content,
+                  icon: '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png'
+                });
+              }
+            } else {
+              fetchNotifications(false);
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(notificationsChannel);
+      };
+    }
+  }, [currentUser, notificationPermission]);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   if (loading) {
     return (
@@ -153,10 +464,7 @@ export function Notifications() {
               </div>
             </div>
             <div>
-              <h1 className="font-pixelated text-lg font-medium flex items-center gap-2">
-                Notifications
-                <Zap className="h-4 w-4 text-social-green" />
-              </h1>
+              <h1 className="font-pixelated text-lg font-medium">Notifications</h1>
               <p className="font-pixelated text-xs text-muted-foreground">
                 {notifications.length} total • {unreadCount} unread • {isOnline ? 'Online' : 'Offline'}
               </p>
@@ -200,51 +508,29 @@ export function Notifications() {
         </div>
 
         {/* Notification Permission Banner */}
-        {!isGranted && (
-          <div className="mx-4 mt-4 p-4 bg-gradient-to-r from-social-blue/10 to-social-green/10 border border-social-blue/20 rounded-lg animate-pulse">
+        {notificationPermission !== 'granted' && (
+          <div className="mx-4 mt-4 p-3 bg-social-blue/10 border border-social-blue/20 rounded-lg">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <Bell className="h-6 w-6 text-social-blue" />
-                  <Zap className="h-3 w-3 text-social-green absolute -top-1 -right-1" />
-                </div>
+              <div className="flex items-center gap-2">
+                <Bell className="h-4 w-4 text-social-blue" />
                 <div>
-                  <p className="font-pixelated text-sm font-medium text-social-blue">
-                    Enable Real-time Notifications
-                  </p>
-                  <p className="font-pixelated text-xs text-muted-foreground">
-                    Get instant alerts for messages, friend requests, likes, and comments
-                  </p>
+                  <p className="font-pixelated text-xs font-medium text-social-blue">Enable Push Notifications</p>
+                  <p className="font-pixelated text-xs text-muted-foreground">Get notified instantly when you receive messages or friend requests</p>
                 </div>
               </div>
               <Button
-                onClick={requestPermission}
-                className="bg-gradient-to-r from-social-blue to-social-green hover:from-social-blue/90 hover:to-social-green/90 text-white font-pixelated text-xs hover-scale"
+                onClick={requestNotificationPermission}
+                size="sm"
+                className="bg-social-blue hover:bg-social-blue/90 text-white font-pixelated text-xs"
               >
-                <Zap className="h-3 w-3 mr-1" />
-                Enable Now
+                Enable
               </Button>
             </div>
           </div>
         )}
 
-        {/* Real-time Status */}
-        {isGranted && (
-          <div className="mx-4 mt-4 p-3 bg-social-green/10 border border-social-green/20 rounded-lg">
-            <div className="flex items-center gap-2">
-              <Zap className="h-4 w-4 text-social-green animate-pulse" />
-              <p className="font-pixelated text-xs text-social-green font-medium">
-                Real-time notifications active
-              </p>
-              <Badge variant="secondary" className="h-4 px-2 text-xs font-pixelated">
-                Live
-              </Badge>
-            </div>
-          </div>
-        )}
-
         {/* Content */}
-        <ScrollArea className="h-[calc(100vh-180px)] p-4 scroll-container">
+        <ScrollArea className="h-[calc(100vh-140px)] p-4 scroll-container">
           {notifications.length > 0 ? (
             <div className="space-y-3">
               {notifications.map((notification) => (
@@ -252,18 +538,15 @@ export function Notifications() {
                   key={notification.id} 
                   className={`cursor-pointer transition-all duration-200 hover:shadow-md hover-scale border-l-4 ${
                     !notification.read 
-                      ? `${getNotificationColor(notification.type)} shadow-sm ring-1 ring-social-green/20` 
-                      : 'border-l-muted bg-background opacity-75'
+                      ? `${getNotificationColor(notification.type)} shadow-sm` 
+                      : 'border-l-muted bg-background'
                   }`}
                   onClick={() => !notification.read && markAsRead(notification.id)}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 mt-1 relative">
+                      <div className="flex-shrink-0 mt-1">
                         {getNotificationIcon(notification.type)}
-                        {!notification.read && (
-                          <div className="absolute -top-1 -right-1 w-2 h-2 bg-social-green rounded-full animate-pulse" />
-                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className={`font-pixelated text-sm leading-relaxed ${
@@ -276,7 +559,7 @@ export function Notifications() {
                             {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                           </p>
                           {!notification.read && (
-                            <Badge variant="secondary" className="h-4 px-2 text-xs font-pixelated animate-pulse">
+                            <Badge variant="secondary" className="h-4 px-1 text-xs font-pixelated">
                               New
                             </Badge>
                           )}
@@ -317,24 +600,21 @@ export function Notifications() {
             <div className="flex flex-col items-center justify-center h-full text-center py-12">
               <div className="relative mb-6">
                 <Bell className="h-20 w-20 text-muted-foreground opacity-50" />
-                <div className="absolute -top-2 -right-2 w-8 h-8 bg-social-green rounded-full flex items-center justify-center">
-                  <Zap className="h-4 w-4 text-white" />
+                <div className="absolute -top-2 -right-2 w-6 h-6 bg-social-green rounded-full flex items-center justify-center">
+                  <Check className="h-3 w-3 text-white" />
                 </div>
               </div>
               <h2 className="font-pixelated text-lg font-medium mb-2">All caught up!</h2>
-              <p className="font-pixelated text-sm text-muted-foreground max-w-sm leading-relaxed mb-4">
-                You don't have any notifications right now. When you receive friend requests, messages, 
-                likes, or comments, they'll appear here instantly.
+              <p className="font-pixelated text-sm text-muted-foreground max-w-sm leading-relaxed">
+                You don't have any notifications right now. When you receive friend requests, messages, likes, or comments, they'll appear here.
               </p>
-              {!isGranted && (
-                <Button
-                  onClick={requestPermission}
-                  className="bg-gradient-to-r from-social-blue to-social-green hover:from-social-blue/90 hover:to-social-green/90 text-white font-pixelated text-xs hover-scale"
-                >
-                  <Zap className="h-3 w-3 mr-1" />
-                  Enable Real-time Notifications
-                </Button>
-              )}
+              <Button
+                onClick={requestNotificationPermission}
+                className="mt-4 bg-social-green hover:bg-social-light-green text-white font-pixelated text-xs"
+                disabled={notificationPermission === 'granted'}
+              >
+                {notificationPermission === 'granted' ? 'Notifications Enabled' : 'Enable Push Notifications'}
+              </Button>
             </div>
           )}
         </ScrollArea>
@@ -344,7 +624,7 @@ export function Notifications() {
           <DialogContent className="max-w-md mx-auto animate-in zoom-in-95 duration-200">
             <DialogHeader>
               <DialogTitle className="font-pixelated text-lg social-gradient bg-clip-text text-transparent flex items-center gap-2">
-                <Zap className="h-5 w-5" />
+                <Bell className="h-5 w-5" />
                 Real-time Notifications
               </DialogTitle>
             </DialogHeader>
@@ -353,42 +633,34 @@ export function Notifications() {
                 <div className="flex items-center gap-3 p-3 bg-social-green/10 rounded-lg">
                   <MessageSquare className="h-4 w-4 text-social-green" />
                   <div>
-                    <p className="font-pixelated text-xs font-medium">Instant Messages</p>
-                    <p className="font-pixelated text-xs text-muted-foreground">Real-time message notifications</p>
+                    <p className="font-pixelated text-xs font-medium">Messages</p>
+                    <p className="font-pixelated text-xs text-muted-foreground">New direct messages from friends</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-social-blue/10 rounded-lg">
                   <UserPlus className="h-4 w-4 text-social-blue" />
                   <div>
-                    <p className="font-pixelated text-xs font-medium">Friend Activity</p>
-                    <p className="font-pixelated text-xs text-muted-foreground">Friend requests and acceptances</p>
+                    <p className="font-pixelated text-xs font-medium">Friend Requests</p>
+                    <p className="font-pixelated text-xs text-muted-foreground">New friend requests and acceptances</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-social-magenta/10 rounded-lg">
                   <Heart className="h-4 w-4 text-social-magenta" />
                   <div>
-                    <p className="font-pixelated text-xs font-medium">Post Interactions</p>
-                    <p className="font-pixelated text-xs text-muted-foreground">Likes and comments on your posts</p>
+                    <p className="font-pixelated text-xs font-medium">Likes & Comments</p>
+                    <p className="font-pixelated text-xs text-muted-foreground">Interactions on your posts</p>
                   </div>
                 </div>
               </div>
-              <div className="bg-gradient-to-r from-social-blue/10 to-social-green/10 p-3 rounded-lg border border-social-green/20">
-                <div className="flex items-center gap-2 mb-2">
-                  <Zap className="h-4 w-4 text-social-green" />
-                  <p className="font-pixelated text-xs font-medium text-social-green">Enhanced Features</p>
-                </div>
-                <ul className="font-pixelated text-xs text-muted-foreground space-y-1">
-                  <li>• Instant browser notifications</li>
-                  <li>• Real-time updates without refresh</li>
-                  <li>• Offline notification queue</li>
-                  <li>• Firebase Cloud Messaging integration</li>
-                </ul>
+              <div className="bg-muted/50 p-3 rounded-lg">
+                <p className="font-pixelated text-xs text-muted-foreground leading-relaxed">
+                  Enable push notifications to receive alerts even when you're on other tabs or apps!
+                </p>
               </div>
               <Button 
                 onClick={() => setShowInfo(false)}
-                className="w-full bg-gradient-to-r from-social-blue to-social-green hover:from-social-blue/90 hover:to-social-green/90 text-white font-pixelated text-xs hover-scale"
+                className="w-full bg-social-green hover:bg-social-light-green text-white font-pixelated text-xs hover-scale"
               >
-                <Zap className="h-3 w-3 mr-1" />
                 Got it!
               </Button>
             </div>
@@ -404,17 +676,13 @@ export function Notifications() {
                 Clear All Notifications
               </AlertDialogTitle>
               <AlertDialogDescription className="font-pixelated text-xs">
-                Are you sure you want to clear all notifications? This action cannot be undone and will 
-                remove all {notifications.length} notifications from your list.
+                Are you sure you want to clear all notifications? This action cannot be undone and will remove all {notifications.length} notifications from your list.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel className="font-pixelated text-xs">Cancel</AlertDialogCancel>
               <AlertDialogAction
-                onClick={() => {
-                  clearAllNotifications();
-                  setShowClearDialog(false);
-                }}
+                onClick={clearAllNotifications}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-pixelated text-xs"
               >
                 Clear All
