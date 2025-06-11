@@ -604,22 +604,22 @@ export function Messages() {
                           )}
                         </Avatar>
                         
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0 pr-2">
+                          <div className="flex items-center justify-between mb-1">
                             <p className={`font-medium truncate text-sm font-pixelated ${
                               friend.unreadCount && friend.unreadCount > 0 ? 'text-foreground' : 'text-foreground'
                             }`}>
                               {friend.name}
                             </p>
                             {friend.lastMessageTime && (
-                              <span className="text-xs text-muted-foreground font-pixelated">
+                              <span className="text-xs text-muted-foreground font-pixelated flex-shrink-0 ml-2">
                                 {formatLastMessageTime(friend.lastMessageTime)}
                               </span>
                             )}
                           </div>
                           
                           <div className="flex items-center justify-between">
-                            <p className={`text-xs truncate font-pixelated ${
+                            <p className={`text-xs truncate font-pixelated pr-2 ${
                               friend.unreadCount && friend.unreadCount > 0 
                                 ? 'text-foreground font-medium' 
                                 : 'text-muted-foreground'
@@ -627,7 +627,7 @@ export function Messages() {
                               {friend.isBlocked ? (
                                 <span className="text-destructive">• No longer friends</span>
                               ) : friend.lastMessageContent ? (
-                                truncateMessage(friend.lastMessageContent)
+                                truncateMessage(friend.lastMessageContent, 25)
                               ) : (
                                 <span className="text-muted-foreground italic">Start chatting with {friend.name}!</span>
                               )}
@@ -637,7 +637,7 @@ export function Messages() {
                             {friend.unreadCount && friend.unreadCount > 0 && (
                               <Badge 
                                 variant="default" 
-                                className="ml-2 h-5 w-5 p-0 text-xs flex items-center justify-center bg-social-green text-white animate-pulse"
+                                className="ml-2 h-5 w-5 p-0 text-xs flex items-center justify-center bg-social-green text-white animate-pulse flex-shrink-0"
                               >
                                 {friend.unreadCount > 9 ? '9+' : friend.unreadCount}
                               </Badge>
