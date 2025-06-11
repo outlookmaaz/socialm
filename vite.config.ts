@@ -22,31 +22,17 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir: 'dist',
     sourcemap: false,
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
-      },
-    },
     rollupOptions: {
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom'],
           router: ['react-router-dom'],
           ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu'],
-          supabase: ['@supabase/supabase-js'],
-          utils: ['date-fns', 'clsx', 'tailwind-merge'],
         },
       },
     },
-    chunkSizeWarningLimit: 1000,
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', 'react-router-dom', '@supabase/supabase-js'],
-    exclude: ['@vite/client', '@vite/env'],
-  },
-  esbuild: {
-    drop: mode === 'production' ? ['console', 'debugger'] : [],
+    include: ['react', 'react-dom', 'react-router-dom'],
   },
 }));

@@ -6,81 +6,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, shrink-to-fit=no" />
     <meta name="format-detection" content="telephone=no" />
     <meta name="msapplication-tap-highlight" content="no" />
-    
-    <!-- SEO Meta Tags -->
-    <title>SocialChat - Real-time Social Messaging Platform | Connect with Friends</title>
-    <meta name="description" content="Join SocialChat, the ultimate real-time social messaging platform. Connect with friends, share posts, send messages, and build your social network. Fast, secure, and user-friendly." />
-    <meta name="keywords" content="social media, messaging, chat, friends, social network, real-time chat, instant messaging, social platform" />
+    <title>SocialChat</title>
+    <meta name="description" content="Real-time social messaging platform" />
     <meta name="author" content="Mohammed Maaz A" />
-    <meta name="robots" content="index, follow" />
-    <meta name="language" content="English" />
-    <meta name="revisit-after" content="7 days" />
-    
-    <!-- Canonical URL -->
-    <link rel="canonical" href="https://socialchat.site" />
-    
-    <!-- Open Graph Meta Tags -->
-    <meta property="og:title" content="SocialChat - Real-time Social Messaging Platform" />
-    <meta property="og:description" content="Connect with friends, share posts, and chat in real-time on SocialChat. The modern social platform for meaningful connections." />
+
+    <meta property="og:title" content="SocialChat" />
+    <meta property="og:description" content="Real-time social messaging platform" />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://socialchat.site" />
-    <meta property="og:image" content="https://socialchat.site/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta property="og:site_name" content="SocialChat" />
-    <meta property="og:locale" content="en_US" />
-    
-    <!-- Twitter Card Meta Tags -->
+    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@socialchat" />
-    <meta name="twitter:creator" content="@mohammedmaaza" />
-    <meta name="twitter:title" content="SocialChat - Real-time Social Messaging Platform" />
-    <meta name="twitter:description" content="Connect with friends, share posts, and chat in real-time on SocialChat." />
-    <meta name="twitter:image" content="https://socialchat.site/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png" />
-    
-    <!-- Additional SEO Meta Tags -->
-    <meta name="theme-color" content="#22c55e" />
-    <meta name="msapplication-TileColor" content="#22c55e" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="SocialChat" />
-    
+    <meta name="twitter:site" content="@lovable_dev" />
+    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+
     <!-- Preload critical resources -->
     <link rel="preload" href="/src/index.css" as="style" />
     <link rel="preload" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" as="style" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     
-    <!-- Favicon and Icons -->
-    <link rel="icon" type="image/png" sizes="32x32" href="/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png" />
-    <link rel="apple-touch-icon" href="/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png" />
-    <link rel="manifest" href="/manifest.json" />
-    
-    <!-- Structured Data -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebApplication",
-      "name": "SocialChat",
-      "description": "Real-time social messaging platform for connecting with friends",
-      "url": "https://socialchat.site",
-      "applicationCategory": "SocialNetworkingApplication",
-      "operatingSystem": "Web Browser",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      },
-      "author": {
-        "@type": "Person",
-        "name": "Mohammed Maaz A"
-      }
-    }
-    </script>
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png" />
     
     <style>
-      /* Critical CSS for faster loading */
+      /* Prevent zoom on mobile devices */
       html, body {
         touch-action: manipulation;
         -webkit-touch-callout: none;
@@ -92,13 +39,9 @@
         -webkit-text-size-adjust: 100%;
         -ms-text-size-adjust: 100%;
         text-size-adjust: 100%;
-        font-family: 'Press Start 2P', cursive;
-        margin: 0;
-        padding: 0;
-        overflow-x: hidden;
       }
       
-      /* Prevent zoom on mobile devices */
+      /* Prevent double-tap zoom */
       * {
         touch-action: manipulation;
       }
@@ -110,61 +53,14 @@
         -ms-user-select: text;
         user-select: text;
       }
-      
-      /* Loading screen */
-      .loading-screen {
-        position: fixed;
-        inset: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: linear-gradient(135deg, #22c55e20, #ffffff);
-        z-index: 9999;
-      }
-      
-      .loading-logo {
-        height: 80px;
-        width: auto;
-        animation: bounce 1s infinite;
-      }
-      
-      @keyframes bounce {
-        0%, 20%, 53%, 80%, 100% { transform: translateY(0); }
-        40%, 43% { transform: translateY(-30px); }
-        70% { transform: translateY(-15px); }
-        90% { transform: translateY(-4px); }
-      }
     </style>
   </head>
 
   <body>
-    <div id="root">
-      <!-- Loading screen -->
-      <div class="loading-screen">
-        <img 
-          src="/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png" 
-          alt="SocialChat Loading" 
-          class="loading-logo"
-        />
-      </div>
-    </div>
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     
-    <!-- Service Worker Registration -->
     <script>
-      // Register service worker for PWA and push notifications
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/firebase-messaging-sw.js')
-            .then((registration) => {
-              console.log('SW registered: ', registration);
-            })
-            .catch((registrationError) => {
-              console.log('SW registration failed: ', registrationError);
-            });
-        });
-      }
-      
       // Additional zoom prevention
       document.addEventListener('gesturestart', function (e) {
         e.preventDefault();
@@ -196,14 +92,6 @@
           event.preventDefault();
         }
         lastTouchTime = now;
-      });
-      
-      // Performance monitoring
-      window.addEventListener('load', () => {
-        if ('performance' in window) {
-          const perfData = performance.getEntriesByType('navigation')[0];
-          console.log('Page load time:', perfData.loadEventEnd - perfData.loadEventStart, 'ms');
-        }
       });
     </script>
   </body>

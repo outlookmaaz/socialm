@@ -8,10 +8,10 @@ interface LoadingScreenProps {
 export function LoadingScreen({ className }: LoadingScreenProps) {
   return (
     <div className={cn(
-      "fixed inset-0 flex items-center justify-center bg-gradient-to-br from-social-light-green/20 to-white dark:from-social-dark-green/20 dark:to-background z-50",
+      "fixed inset-0 flex items-center justify-center bg-gradient-to-br from-social-light-green/20 to-white dark:from-social-dark-green/20 dark:to-background",
       className
     )}>
-      <div className="text-center space-y-4 animate-fade-in">
+      <div className="text-center space-y-4">
         <img 
           src="/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png" 
           alt="SocialChat Logo" 
@@ -26,9 +26,6 @@ export function LoadingScreen({ className }: LoadingScreenProps) {
             <div className="h-2 w-2 rounded-full bg-social-green animate-pulse delay-150"></div>
             <div className="h-2 w-2 rounded-full bg-social-green animate-pulse delay-300"></div>
           </div>
-          <p className="text-xs font-pixelated text-muted-foreground">
-            Loading your social experience...
-          </p>
         </div>
       </div>
     </div>

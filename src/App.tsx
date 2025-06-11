@@ -7,9 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { LoadingScreen } from "@/components/ui/loading-screen";
-import { PerformanceMonitor } from "@/components/ui/performance-monitor";
 import { useTheme } from "@/hooks/use-theme";
-import { usePushNotifications } from "@/hooks/use-push-notifications";
 
 // Pages
 import Index from "./pages/Index";
@@ -33,10 +31,6 @@ const queryClient = new QueryClient({
       cacheTime: 1000 * 60 * 30,
       refetchOnWindowFocus: false,
       retry: 1,
-      refetchOnReconnect: true,
-    },
-    mutations: {
-      retry: 1,
     },
   },
 });
@@ -45,7 +39,6 @@ const App = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const { theme, colorTheme, setTheme, setColorTheme } = useTheme();
-  const { requestPermission } = usePushNotifications();
   
   useEffect(() => {
     // Apply theme immediately on mount
@@ -59,13 +52,12 @@ const App = () => {
       root.classList.add(`theme-${colorTheme}`);
     }
 
-    // Set favicon and title
     const faviconLink = document.querySelector("link[rel*='icon']") || document.createElement('link');
     faviconLink.setAttribute('rel', 'shortcut icon');
     faviconLink.setAttribute('href', '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png');
     document.head.appendChild(faviconLink);
     
-    document.title = "SocialChat - Real-time Social Messaging Platform";
+    document.title = "SocialChat - Connect with Friends";
   }, [theme, colorTheme, setTheme, setColorTheme]);
   
   useEffect(() => {
@@ -81,15 +73,6 @@ const App = () => {
         } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           setSession(session);
           setLoading(false);
-          
-          // Request push notification permission after login
-          if (session && 'Notification' in window) {
-            setTimeout(() => {
-              if (Notification.permission === 'default') {
-                requestPermission();
-              }
-            }, 2000);
-          }
         } else if (event === 'INITIAL_SESSION') {
           setSession(session);
           setLoading(false);
@@ -104,7 +87,7 @@ const App = () => {
       console.log('Initial session check:', session?.user?.id);
       setSession(session);
       // Add a small delay to show the loading animation
-      setTimeout(() => setLoading(false), 1000);
+      setTimeout(() => setLoading(false), 1500);
     });
 
     // Request notification permission on app load
@@ -118,36 +101,8 @@ const App = () => {
       }
     }
 
-    // Performance optimization: Preload critical routes
-    if (session) {
-      import('./pages/Dashboard');
-      import('./pages/Messages');
-      import('./pages/Friends');
-    }
-
     return () => {
       subscription.unsubscribe();
-    };
-  }, [requestPermission]);
-
-  // Add error boundary for better error handling
-  useEffect(() => {
-    const handleError = (event: ErrorEvent) => {
-      console.error('Global error:', event.error);
-      // You could send this to an error reporting service
-    };
-
-    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      console.error('Unhandled promise rejection:', event.reason);
-      // You could send this to an error reporting service
-    };
-
-    window.addEventListener('error', handleError);
-    window.addEventListener('unhandledrejection', handleUnhandledRejection);
-
-    return () => {
-      window.removeEventListener('error', handleError);
-      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
     };
   }, []);
   
@@ -160,7 +115,6 @@ const App = () => {
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <PerformanceMonitor />
         <BrowserRouter>
           <Routes>
             {/* Public Routes */}
