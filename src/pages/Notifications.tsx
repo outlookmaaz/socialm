@@ -17,7 +17,8 @@ import {
   CheckCheck, 
   X,
   Wifi,
-  WifiOff
+  WifiOff,
+  UserX
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -316,6 +317,8 @@ export function Notifications() {
         return <UserPlus className="h-4 w-4 text-social-blue" />;
       case 'friend_accepted':
         return <User className="h-4 w-4 text-social-green" />;
+      case 'friend_rejected':
+        return <UserX className="h-4 w-4 text-destructive" />;
       case 'message':
         return <MessageSquare className="h-4 w-4 text-social-green" />;
       case 'like':
@@ -333,6 +336,8 @@ export function Notifications() {
         return 'border-l-social-blue bg-social-blue/5';
       case 'friend_accepted':
         return 'border-l-social-green bg-social-green/5';
+      case 'friend_rejected':
+        return 'border-l-destructive bg-destructive/5';
       case 'message':
         return 'border-l-social-green bg-social-green/5';
       case 'like':
@@ -641,7 +646,7 @@ export function Notifications() {
                   <UserPlus className="h-4 w-4 text-social-blue" />
                   <div>
                     <p className="font-pixelated text-xs font-medium">Friend Requests</p>
-                    <p className="font-pixelated text-xs text-muted-foreground">New friend requests and acceptances</p>
+                    <p className="font-pixelated text-xs text-muted-foreground">New friend requests and responses</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-social-magenta/10 rounded-lg">
@@ -649,6 +654,13 @@ export function Notifications() {
                   <div>
                     <p className="font-pixelated text-xs font-medium">Likes & Comments</p>
                     <p className="font-pixelated text-xs text-muted-foreground">Interactions on your posts</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 p-3 bg-destructive/10 rounded-lg">
+                  <UserX className="h-4 w-4 text-destructive" />
+                  <div>
+                    <p className="font-pixelated text-xs font-medium">Friend Request Rejected</p>
+                    <p className="font-pixelated text-xs text-muted-foreground">When someone declines your friend request</p>
                   </div>
                 </div>
               </div>

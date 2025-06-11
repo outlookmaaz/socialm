@@ -44,6 +44,7 @@ export function Friends() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [showRemoveDialog, setShowRemoveDialog] = useState<{show: boolean, friend: Friend | null}>({show: false, friend: null});
   const [removingFriend, setRemovingFriend] = useState<string | null>(null);
+  const [processingRequest, setProcessingRequest] = useState<string | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -169,7 +170,8 @@ export function Friends() {
         avatar: request.sender_profile.avatar,
         status: 'pending' as const,
         created_at: request.created_at,
-        friend_id: request.id
+        friend_id: request.id,
+        sender_id: request.sender_id
       })) || [];
 
       setRequests(requestsList);
@@ -232,15 +234,25 @@ export function Friends() {
           status: 'pending'
         });
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === '23505') { // Unique constraint violation
+          toast({
+            variant: 'destructive',
+            title: 'Request already sent',
+            description: 'You have already sent a friend request to this user',
+          });
+        } else {
+          throw error;
+        }
+      } else {
+        // Remove from suggested list
+        setSuggested(prev => prev.filter(user => user.id !== userId));
 
-      // Remove from suggested list
-      setSuggested(prev => prev.filter(user => user.id !== userId));
-
-      toast({
-        title: 'Friend request sent',
-        description: 'Your friend request has been sent successfully',
-      });
+        toast({
+          title: 'Friend request sent!',
+          description: 'Your friend request has been sent successfully',
+        });
+      }
     } catch (error) {
       console.error('Error sending friend request:', error);
       toast({
@@ -251,14 +263,41 @@ export function Friends() {
     }
   };
 
-  const acceptFriendRequest = async (friendId: string) => {
+  const acceptFriendRequest = async (request: Friend) => {
     try {
+      if (!request.friend_id) return;
+      
+      setProcessingRequest(request.id);
+
       const { error } = await supabase
         .from('friends')
         .update({ status: 'accepted' })
-        .eq('id', friendId);
+        .eq('id', request.friend_id);
 
       if (error) throw error;
+
+      // Create notification for the requester
+      try {
+        const { data: currentUserProfile } = await supabase
+          .from('profiles')
+          .select('name')
+          .eq('id', currentUser.id)
+          .single();
+
+        const userName = currentUserProfile?.name || 'Someone';
+
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: request.sender_id,
+            type: 'friend_accepted',
+            content: `${userName} accepted your friend request`,
+            reference_id: request.friend_id,
+            read: false
+          });
+      } catch (notifError) {
+        console.log('Notification creation handled:', notifError);
+      }
 
       // Refresh all lists
       await Promise.all([
@@ -278,24 +317,53 @@ export function Friends() {
         title: 'Error',
         description: 'Failed to accept friend request',
       });
+    } finally {
+      setProcessingRequest(null);
     }
   };
 
-  const rejectFriendRequest = async (friendId: string) => {
+  const rejectFriendRequest = async (request: Friend) => {
     try {
+      if (!request.friend_id) return;
+      
+      setProcessingRequest(request.id);
+
       const { error } = await supabase
         .from('friends')
         .delete()
-        .eq('id', friendId);
+        .eq('id', request.friend_id);
 
       if (error) throw error;
 
+      // Create notification for the requester
+      try {
+        const { data: currentUserProfile } = await supabase
+          .from('profiles')
+          .select('name')
+          .eq('id', currentUser.id)
+          .single();
+
+        const userName = currentUserProfile?.name || 'Someone';
+
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: request.sender_id,
+            type: 'friend_rejected',
+            content: `${userName} declined your friend request`,
+            reference_id: request.friend_id,
+            read: false
+          });
+      } catch (notifError) {
+        console.log('Notification creation handled:', notifError);
+      }
+
       // Remove from requests list
-      setRequests(prev => prev.filter(req => req.friend_id !== friendId));
+      setRequests(prev => prev.filter(req => req.friend_id !== request.friend_id));
 
       toast({
         title: 'Friend request rejected',
-        description: 'The friend request has been rejected',
+        description: 'The friend request has been declined',
       });
     } catch (error) {
       console.error('Error rejecting friend request:', error);
@@ -304,6 +372,8 @@ export function Friends() {
         title: 'Error',
         description: 'Failed to reject friend request',
       });
+    } finally {
+      setProcessingRequest(null);
     }
   };
 
@@ -377,21 +447,23 @@ export function Friends() {
             {type === 'request' && (
               <>
                 <Button
-                  onClick={() => acceptFriendRequest(user.friend_id!)}
+                  onClick={() => acceptFriendRequest(user)}
                   size="sm"
+                  disabled={processingRequest === user.id}
                   className="bg-social-green hover:bg-social-light-green text-white font-pixelated text-xs h-6"
                 >
                   <UserCheck className="h-3 w-3 mr-1" />
-                  Accept
+                  {processingRequest === user.id ? 'Processing...' : 'Accept'}
                 </Button>
                 <Button
-                  onClick={() => rejectFriendRequest(user.friend_id!)}
+                  onClick={() => rejectFriendRequest(user)}
                   size="sm"
-                  variant="outline"
+                  variant="destructive"
+                  disabled={processingRequest === user.id}
                   className="font-pixelated text-xs h-6"
                 >
-                  <UserMinus className="h-3 w-3 mr-1" />
-                  Reject
+                  <X className="h-3 w-3 mr-1" />
+                  {processingRequest === user.id ? 'Processing...' : 'Reject'}
                 </Button>
               </>
             )}
