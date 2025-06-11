@@ -3,7 +3,8 @@ import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Send, MessageSquare, User, ArrowLeft, UserX } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Send, MessageSquare, User, ArrowLeft, UserX, Circle } from 'lucide-react';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -15,6 +16,10 @@ interface Friend {
   username: string;
   avatar: string;
   isBlocked?: boolean;
+  lastMessageTime?: string;
+  lastMessageContent?: string;
+  unreadCount?: number;
+  isOnline?: boolean;
 }
 
 interface Message {
@@ -23,6 +28,7 @@ interface Message {
   receiver_id: string;
   content: string;
   created_at: string;
+  read: boolean;
   sender?: {
     name: string;
     avatar: string;
@@ -90,16 +96,44 @@ export function Messages() {
             .single();
           
           if (friendProfile && friendProfile.id) {
+            // Get last message and unread count for this friend
+            const { data: lastMessage } = await supabase
+              .from('messages')
+              .select('content, created_at, sender_id, read')
+              .or(`and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .single();
+
+            // Get unread count (messages sent to current user that are unread)
+            const { count: unreadCount } = await supabase
+              .from('messages')
+              .select('*', { count: 'exact', head: true })
+              .eq('sender_id', friendId)
+              .eq('receiver_id', user.id)
+              .eq('read', false);
+
             formattedFriends.push({
               id: friendProfile.id,
               name: friendProfile.name || 'User',
               username: friendProfile.username || 'guest',
               avatar: friendProfile.avatar || '',
-              isBlocked: false
+              isBlocked: false,
+              lastMessageTime: lastMessage?.created_at || friend.created_at,
+              lastMessageContent: lastMessage?.content || '',
+              unreadCount: unreadCount || 0,
+              isOnline: Math.random() > 0.5 // Simulate online status
             });
           }
         }
       }
+
+      // Sort friends by last activity (most recent first)
+      formattedFriends.sort((a, b) => {
+        const timeA = new Date(a.lastMessageTime || 0).getTime();
+        const timeB = new Date(b.lastMessageTime || 0).getTime();
+        return timeB - timeA;
+      });
 
       setFriends(formattedFriends);
     } catch (error) {
@@ -189,6 +223,7 @@ export function Messages() {
           receiver_id,
           content,
           created_at,
+          read,
           profiles!messages_sender_id_fkey(name, avatar)
         `)
         .or(`and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`)
@@ -202,6 +237,7 @@ export function Messages() {
         receiver_id: message.receiver_id,
         content: message.content,
         created_at: message.created_at,
+        read: message.read,
         sender: {
           name: message.profiles?.name || 'Unknown',
           avatar: message.profiles?.avatar || ''
@@ -211,10 +247,37 @@ export function Messages() {
       setMessages(formattedMessages);
       setMessageGroups(groupMessagesByDate(formattedMessages));
       
+      // Mark messages as read when opening conversation
+      await markMessagesAsRead(friendId);
+      
       // Only scroll to bottom when initially loading messages
       setShouldScrollToBottom(true);
     } catch (error) {
       console.error('Error fetching messages:', error);
+    }
+  };
+
+  const markMessagesAsRead = async (friendId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Mark all unread messages from this friend as read
+      await supabase
+        .from('messages')
+        .update({ read: true })
+        .eq('sender_id', friendId)
+        .eq('receiver_id', user.id)
+        .eq('read', false);
+
+      // Update friends list to remove unread count
+      setFriends(prev => 
+        prev.map(f => 
+          f.id === friendId ? { ...f, unreadCount: 0 } : f
+        )
+      );
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
     }
   };
 
@@ -286,6 +349,23 @@ export function Messages() {
           return updatedMessages;
         });
         
+        // Update friends list with new last message
+        setFriends(prev => 
+          prev.map(f => 
+            f.id === selectedFriend.id 
+              ? { 
+                  ...f, 
+                  lastMessageTime: data.created_at,
+                  lastMessageContent: data.content
+                } 
+              : f
+          ).sort((a, b) => {
+            const timeA = new Date(a.lastMessageTime || 0).getTime();
+            const timeB = new Date(b.lastMessageTime || 0).getTime();
+            return timeB - timeA;
+          })
+        );
+        
         // Only scroll to bottom when sending a new message
         setShouldScrollToBottom(true);
       }
@@ -312,10 +392,26 @@ export function Messages() {
     return format(new Date(dateString), 'HH:mm');
   };
 
+  const formatLastMessageTime = (dateString: string) => {
+    const date = new Date(dateString);
+    if (isToday(date)) {
+      return format(date, 'HH:mm');
+    } else if (isYesterday(date)) {
+      return 'Yesterday';
+    } else {
+      return format(date, 'MMM d');
+    }
+  };
+
   const getDateSeparatorText = (date: string) => {
     if (date === 'Today') return 'Today';
     if (date === 'Yesterday') return 'Yesterday';
     return date;
+  };
+
+  const truncateMessage = (message: string, maxLength: number = 30) => {
+    if (message.length <= maxLength) return message;
+    return message.substring(0, maxLength) + '...';
   };
 
   useEffect(() => {
@@ -374,6 +470,9 @@ export function Messages() {
                     setShouldScrollToBottom(true);
                     return updated;
                   });
+                  
+                  // Auto-mark as read since conversation is open
+                  await markMessagesAsRead(selectedFriend.id);
                 }
               }
             } else if (payload.eventType === 'UPDATE' || payload.eventType === 'DELETE') {
@@ -465,32 +564,71 @@ export function Messages() {
                           setSelectedFriend(friend);
                           fetchMessages(friend.id);
                         }}
-                        className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-accent/50 ${
+                        className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-accent/50 relative ${
                           selectedFriend?.id === friend.id 
                             ? 'bg-accent shadow-md' 
                             : ''
-                        } ${friend.isBlocked ? 'opacity-50' : ''}`}
+                        } ${friend.isBlocked ? 'opacity-50' : ''} ${
+                          friend.unreadCount && friend.unreadCount > 0 ? 'bg-social-green/5 border-l-4 border-social-green' : ''
+                        }`}
                       >
-                        <Avatar className="h-10 w-10 border-2 border-background flex-shrink-0">
-                          {friend.avatar ? (
-                            <AvatarImage src={friend.avatar} />
-                          ) : (
-                            <AvatarFallback className="bg-primary text-primary-foreground font-pixelated text-xs">
-                              {friend.name.substring(0, 2).toUpperCase()}
-                            </AvatarFallback>
+                        <div className="relative">
+                          <Avatar className="h-10 w-10 border-2 border-background flex-shrink-0">
+                            {friend.avatar ? (
+                              <AvatarImage src={friend.avatar} />
+                            ) : (
+                              <AvatarFallback className="bg-primary text-primary-foreground font-pixelated text-xs">
+                                {friend.name.substring(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            )}
+                          </Avatar>
+                          {/* Online Status Indicator */}
+                          {friend.isOnline && (
+                            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-social-green rounded-full border-2 border-background"></div>
                           )}
-                        </Avatar>
+                        </div>
+                        
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate text-sm font-pixelated">{friend.name}</p>
-                          <p className="text-xs text-muted-foreground truncate font-pixelated">
-                            @{friend.username}
-                            {friend.isBlocked && (
-                              <span className="ml-2 text-destructive font-pixelated text-xs">
-                                • No longer friends
+                          <div className="flex items-center justify-between">
+                            <p className={`font-medium truncate text-sm font-pixelated ${
+                              friend.unreadCount && friend.unreadCount > 0 ? 'text-foreground' : 'text-foreground'
+                            }`}>
+                              {friend.name}
+                            </p>
+                            {friend.lastMessageTime && (
+                              <span className="text-xs text-muted-foreground font-pixelated">
+                                {formatLastMessageTime(friend.lastMessageTime)}
                               </span>
                             )}
-                          </p>
+                          </div>
+                          
+                          <div className="flex items-center justify-between">
+                            <p className={`text-xs truncate font-pixelated ${
+                              friend.unreadCount && friend.unreadCount > 0 
+                                ? 'text-foreground font-medium' 
+                                : 'text-muted-foreground'
+                            }`}>
+                              {friend.isBlocked ? (
+                                <span className="text-destructive">• No longer friends</span>
+                              ) : friend.lastMessageContent ? (
+                                truncateMessage(friend.lastMessageContent)
+                              ) : (
+                                `@${friend.username}`
+                              )}
+                            </p>
+                            
+                            {/* Unread Count Badge */}
+                            {friend.unreadCount && friend.unreadCount > 0 && (
+                              <Badge 
+                                variant="default" 
+                                className="ml-2 h-5 w-5 p-0 text-xs flex items-center justify-center bg-social-green text-white animate-pulse"
+                              >
+                                {friend.unreadCount > 9 ? '9+' : friend.unreadCount}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
+                        
                         {friend.isBlocked && (
                           <UserX className="h-4 w-4 text-destructive flex-shrink-0" />
                         )}
@@ -524,19 +662,33 @@ export function Messages() {
                   >
                     <ArrowLeft className="h-4 w-4" />
                   </Button>
-                  <Avatar className="h-8 w-8 flex-shrink-0">
-                    {selectedFriend.avatar ? (
-                      <AvatarImage src={selectedFriend.avatar} />
-                    ) : (
-                      <AvatarFallback className="bg-primary text-primary-foreground font-pixelated text-xs">
-                        {selectedFriend.name.substring(0, 2).toUpperCase()}
-                      </AvatarFallback>
+                  <div className="relative">
+                    <Avatar className="h-8 w-8 flex-shrink-0">
+                      {selectedFriend.avatar ? (
+                        <AvatarImage src={selectedFriend.avatar} />
+                      ) : (
+                        <AvatarFallback className="bg-primary text-primary-foreground font-pixelated text-xs">
+                          {selectedFriend.name.substring(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      )}
+                    </Avatar>
+                    {/* Online Status in Header */}
+                    {selectedFriend.isOnline && (
+                      <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-social-green rounded-full border border-background"></div>
                     )}
-                  </Avatar>
+                  </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate text-sm font-pixelated">{selectedFriend.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium truncate text-sm font-pixelated">{selectedFriend.name}</p>
+                      {selectedFriend.isOnline && (
+                        <Circle className="h-2 w-2 fill-social-green text-social-green" />
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground truncate font-pixelated">
                       @{selectedFriend.username}
+                      {selectedFriend.isOnline && (
+                        <span className="ml-2 text-social-green">• Online</span>
+                      )}
                       {selectedFriend.isBlocked && (
                         <span className="ml-2 text-destructive font-pixelated">
                           • No longer friends
@@ -598,7 +750,7 @@ export function Messages() {
                                   )}
                                 </Avatar>
                                 <div 
-                                  className={`p-2 rounded-lg ${
+                                  className={`p-2 rounded-lg relative ${
                                     message.sender_id === currentUser?.id 
                                       ? 'bg-primary text-primary-foreground' 
                                       : 'bg-muted'
@@ -607,9 +759,24 @@ export function Messages() {
                                   <p className="text-xs whitespace-pre-wrap break-words font-pixelated">
                                     {message.content}
                                   </p>
-                                  <p className="text-xs opacity-70 mt-1 font-pixelated">
-                                    {formatMessageTime(message.created_at)}
-                                  </p>
+                                  <div className="flex items-center justify-between mt-1">
+                                    <p className="text-xs opacity-70 font-pixelated">
+                                      {formatMessageTime(message.created_at)}
+                                    </p>
+                                    {/* Read Status for sent messages */}
+                                    {message.sender_id === currentUser?.id && (
+                                      <div className="ml-2">
+                                        {message.read ? (
+                                          <div className="flex">
+                                            <Circle className="h-2 w-2 fill-social-green text-social-green" />
+                                            <Circle className="h-2 w-2 fill-social-green text-social-green -ml-1" />
+                                          </div>
+                                        ) : (
+                                          <Circle className="h-2 w-2 fill-muted-foreground text-muted-foreground" />
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             </div>
