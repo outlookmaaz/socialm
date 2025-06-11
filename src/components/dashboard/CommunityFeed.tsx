@@ -146,9 +146,17 @@ export function CommunityFeed({ refreshTrigger }: CommunityFeedProps) {
         setLoading(true);
       }
       
-      console.log('Fetching posts with privacy filtering...');
+      console.log('Fetching posts...');
 
-      // Fetch posts with visibility column and proper filtering
+      // First, get current user to determine what posts they can see
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log('No authenticated user found');
+        setPosts([]);
+        return;
+      }
+
+      // Fetch all posts with their related data
       const { data, error } = await supabase
         .from('posts')
         .select(`
@@ -181,13 +189,68 @@ export function CommunityFeed({ refreshTrigger }: CommunityFeedProps) {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching posts:', error);
+        console.error('Database error:', error);
+        
+        // If it's a policy error, try a simpler query
+        if (error.code === '42501' || error.message.includes('policy')) {
+          console.log('Policy error detected, trying simpler query...');
+          
+          // Try fetching only public posts
+          const { data: publicData, error: publicError } = await supabase
+            .from('posts')
+            .select(`
+              id,
+              content,
+              image_url,
+              created_at,
+              user_id,
+              profiles:user_id (
+                name,
+                username,
+                avatar
+              ),
+              likes (
+                id,
+                user_id
+              ),
+              comments (
+                id,
+                content,
+                created_at,
+                user_id,
+                profiles:user_id (
+                  name,
+                  avatar
+                )
+              )
+            `)
+            .eq('visibility', 'public')
+            .order('created_at', { ascending: false });
+
+          if (publicError) {
+            throw publicError;
+          }
+
+          const formattedPosts = publicData?.map(post => ({
+            ...post,
+            visibility: 'public' as const,
+            _count: {
+              likes: post.likes?.length || 0,
+              comments: post.comments?.length || 0
+            }
+          })) || [];
+
+          setPosts(formattedPosts);
+          console.log('Loaded public posts only:', formattedPosts.length);
+          return;
+        }
+        
         throw error;
       }
 
       const formattedPosts = data?.map(post => ({
         ...post,
-        visibility: post.visibility || 'public', // Default to public if not set
+        visibility: post.visibility || 'public',
         _count: {
           likes: post.likes?.length || 0,
           comments: post.comments?.length || 0
@@ -195,25 +258,23 @@ export function CommunityFeed({ refreshTrigger }: CommunityFeedProps) {
       })) || [];
 
       setPosts(formattedPosts);
-      console.log('Loaded posts:', formattedPosts.length, 'posts with privacy settings');
-      
-      // Log privacy distribution for debugging
-      const privacyStats = formattedPosts.reduce((acc, post) => {
-        acc[post.visibility || 'public'] = (acc[post.visibility || 'public'] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-      console.log('Privacy distribution:', privacyStats);
+      console.log('Successfully loaded posts:', formattedPosts.length);
       
     } catch (error) {
       console.error('Error fetching posts:', error);
+      
+      // Show user-friendly error message
       if (showLoadingState) {
         toast({
           variant: 'destructive',
-          title: 'Error',
-          description: 'Failed to load posts. Please refresh the page.'
+          title: 'Unable to load posts',
+          description: 'There was a problem loading the feed. Please try refreshing the page.',
+          duration: 5000,
         });
       }
-      setPosts([]); // Set empty array to show "no posts" message
+      
+      // Set empty array to show "no posts" message instead of loading forever
+      setPosts([]);
     } finally {
       if (showLoadingState) {
         setLoading(false);
