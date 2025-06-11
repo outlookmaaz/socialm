@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { Heart, MessageCircle, Send, MoreVertical, Edit, Trash2, ArrowUp, ChevronDown, ChevronUp, Globe, Users } from 'lucide-react';
+import { Heart, MessageCircle, Send, MoreVertical, Edit, Trash2, ArrowUp, ChevronDown, ChevronUp, Globe, Users, RefreshCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -75,6 +75,7 @@ interface CommunityFeedProps {
 export function CommunityFeed({ refreshTrigger }: CommunityFeedProps) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [commentInputs, setCommentInputs] = useState<{ [key: string]: string }>({});
@@ -88,6 +89,7 @@ export function CommunityFeed({ refreshTrigger }: CommunityFeedProps) {
   const [showCommentBox, setShowCommentBox] = useState<{ [key: string]: boolean }>({});
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [showUserDialog, setShowUserDialog] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const feedRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const { toast } = useToast();
@@ -144,6 +146,7 @@ export function CommunityFeed({ refreshTrigger }: CommunityFeedProps) {
     try {
       if (showLoadingState) {
         setLoading(true);
+        setError(null);
       }
       
       console.log('Fetching posts...');
@@ -153,50 +156,65 @@ export function CommunityFeed({ refreshTrigger }: CommunityFeedProps) {
       if (!user) {
         console.log('No authenticated user found');
         setPosts([]);
+        setError('Please log in to view posts');
         return;
       }
 
-      // Fetch all posts with their related data
-      const { data, error } = await supabase
-        .from('posts')
-        .select(`
-          id,
-          content,
-          image_url,
-          visibility,
-          created_at,
-          user_id,
-          profiles:user_id (
-            name,
-            username,
-            avatar
-          ),
-          likes (
-            id,
-            user_id
-          ),
-          comments (
+      // Try to fetch posts with comprehensive error handling
+      let postsData = null;
+      let fetchError = null;
+
+      try {
+        // First attempt: Try to fetch all posts with visibility
+        const { data, error } = await supabase
+          .from('posts')
+          .select(`
             id,
             content,
+            image_url,
+            visibility,
             created_at,
             user_id,
             profiles:user_id (
               name,
+              username,
               avatar
+            ),
+            likes (
+              id,
+              user_id
+            ),
+            comments (
+              id,
+              content,
+              created_at,
+              user_id,
+              profiles:user_id (
+                name,
+                avatar
+              )
             )
-          )
-        `)
-        .order('created_at', { ascending: false });
+          `)
+          .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Database error:', error);
+        if (error) {
+          fetchError = error;
+          console.error('Primary fetch error:', error);
+        } else {
+          postsData = data;
+        }
+      } catch (err) {
+        fetchError = err;
+        console.error('Primary fetch exception:', err);
+      }
+
+      // If primary fetch failed, try fallback approaches
+      if (fetchError || !postsData) {
+        console.log('Primary fetch failed, trying fallback...');
         
-        // If it's a policy error, try a simpler query
-        if (error.code === '42501' || error.message.includes('policy')) {
-          console.log('Policy error detected, trying simpler query...');
-          
-          // Try fetching only public posts
-          const { data: publicData, error: publicError } = await supabase
+        try {
+          // Fallback 1: Try without visibility column
+          const { data: fallbackData, error: fallbackError } = await supabase
             .from('posts')
             .select(`
               id,
@@ -224,51 +242,50 @@ export function CommunityFeed({ refreshTrigger }: CommunityFeedProps) {
                 )
               )
             `)
-            .eq('visibility', 'public')
             .order('created_at', { ascending: false });
 
-          if (publicError) {
-            throw publicError;
+          if (fallbackError) {
+            console.error('Fallback fetch error:', fallbackError);
+            throw fallbackError;
           }
 
-          const formattedPosts = publicData?.map(post => ({
-            ...post,
-            visibility: 'public' as const,
-            _count: {
-              likes: post.likes?.length || 0,
-              comments: post.comments?.length || 0
-            }
-          })) || [];
-
-          setPosts(formattedPosts);
-          console.log('Loaded public posts only:', formattedPosts.length);
-          return;
+          postsData = fallbackData;
+          console.log('Fallback fetch successful');
+        } catch (fallbackErr) {
+          console.error('Fallback fetch failed:', fallbackErr);
+          throw fallbackErr;
         }
-        
-        throw error;
       }
 
-      const formattedPosts = data?.map(post => ({
+      if (!postsData) {
+        throw new Error('No data received from database');
+      }
+
+      const formattedPosts = postsData.map(post => ({
         ...post,
-        visibility: post.visibility || 'public',
+        visibility: post.visibility || 'public', // Default to public if no visibility
         _count: {
           likes: post.likes?.length || 0,
           comments: post.comments?.length || 0
         }
-      })) || [];
+      }));
 
       setPosts(formattedPosts);
+      setError(null);
       console.log('Successfully loaded posts:', formattedPosts.length);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching posts:', error);
+      
+      const errorMessage = error.message || 'Unknown error occurred';
+      setError(`Failed to load posts: ${errorMessage}`);
       
       // Show user-friendly error message
       if (showLoadingState) {
         toast({
           variant: 'destructive',
           title: 'Unable to load posts',
-          description: 'There was a problem loading the feed. Please try refreshing the page.',
+          description: 'There was a problem loading the feed. Please try refreshing.',
           duration: 5000,
         });
       }
@@ -279,8 +296,14 @@ export function CommunityFeed({ refreshTrigger }: CommunityFeedProps) {
       if (showLoadingState) {
         setLoading(false);
       }
+      setRefreshing(false);
     }
   }, [toast]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchPosts(false);
+  };
 
   const getCurrentUser = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -672,6 +695,45 @@ export function CommunityFeed({ refreshTrigger }: CommunityFeedProps) {
           </Card>
         ))}
       </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="text-center py-12">
+        <CardContent>
+          <div className="flex flex-col items-center gap-4">
+            <div className="text-destructive">
+              <MessageCircle className="h-16 w-16 mx-auto mb-4 opacity-50" />
+            </div>
+            <div>
+              <h3 className="font-pixelated text-sm font-medium mb-2 text-destructive">
+                Failed to load posts
+              </h3>
+              <p className="font-pixelated text-xs text-muted-foreground mb-4 max-w-md">
+                {error}
+              </p>
+              <Button 
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="bg-social-green hover:bg-social-light-green text-white font-pixelated text-xs"
+              >
+                {refreshing ? (
+                  <>
+                    <RefreshCw className="h-3 w-3 mr-2 animate-spin" />
+                    Refreshing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-3 w-3 mr-2" />
+                    Try Again
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 

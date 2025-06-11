@@ -101,7 +101,7 @@ export function Dashboard() {
         imageUrl = data.publicUrl;
       }
 
-      // Prepare post data with explicit privacy setting
+      // Prepare post data - try with visibility first, fallback without it
       const visibilityValue = isPublic ? 'public' : 'friends';
       
       console.log('Creating post with settings:', {
@@ -111,36 +111,81 @@ export function Dashboard() {
         hasImage: !!imageUrl
       });
 
-      // Create the post with proper error handling
-      const { data: newPost, error } = await supabase
-        .from('posts')
-        .insert({
-          content: postContent.trim(),
-          user_id: user.id,
-          image_url: imageUrl,
-          visibility: visibilityValue
-        })
-        .select(`
-          id,
-          content,
-          image_url,
-          visibility,
-          created_at,
-          user_id,
-          profiles:user_id (
-            name,
-            username,
-            avatar
-          )
-        `)
-        .single();
+      // First attempt: Try to create post with visibility
+      let postData = null;
+      let createError = null;
 
-      if (error) {
-        console.error('Database error:', error);
-        throw new Error(`Failed to create post: ${error.message}`);
+      try {
+        const { data: newPost, error } = await supabase
+          .from('posts')
+          .insert({
+            content: postContent.trim(),
+            user_id: user.id,
+            image_url: imageUrl,
+            visibility: visibilityValue
+          })
+          .select(`
+            id,
+            content,
+            image_url,
+            visibility,
+            created_at,
+            user_id,
+            profiles:user_id (
+              name,
+              username,
+              avatar
+            )
+          `)
+          .single();
+
+        if (error) {
+          createError = error;
+          console.error('Primary post creation error:', error);
+        } else {
+          postData = newPost;
+        }
+      } catch (err) {
+        createError = err;
+        console.error('Primary post creation exception:', err);
       }
 
-      console.log('Post created successfully:', newPost);
+      // If primary creation failed, try fallback without visibility
+      if (createError || !postData) {
+        console.log('Primary post creation failed, trying fallback...');
+        
+        const { data: fallbackPost, error: fallbackError } = await supabase
+          .from('posts')
+          .insert({
+            content: postContent.trim(),
+            user_id: user.id,
+            image_url: imageUrl
+            // No visibility field
+          })
+          .select(`
+            id,
+            content,
+            image_url,
+            created_at,
+            user_id,
+            profiles:user_id (
+              name,
+              username,
+              avatar
+            )
+          `)
+          .single();
+
+        if (fallbackError) {
+          console.error('Fallback post creation error:', fallbackError);
+          throw new Error(`Failed to create post: ${fallbackError.message}`);
+        }
+
+        postData = fallbackPost;
+        console.log('Fallback post creation successful');
+      }
+
+      console.log('Post created successfully:', postData);
 
       // Show success message with privacy info
       toast({
