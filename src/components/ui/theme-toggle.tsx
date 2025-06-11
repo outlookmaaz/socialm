@@ -7,6 +7,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 
 export function ThemeToggle() {
@@ -32,74 +33,83 @@ export function ThemeToggle() {
 
   return (
     <div className="flex items-center gap-2">
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => handleThemeChange('light')}
-        className={`${theme === 'light' ? 'bg-accent' : ''} hover:bg-accent`}
-      >
-        <Sun className="h-4 w-4" />
-        <span className="sr-only">Light Mode</span>
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => handleThemeChange('dark')}
-        className={`${theme === 'dark' ? 'bg-accent' : ''} hover:bg-accent`}
-      >
-        <Moon className="h-4 w-4" />
-        <span className="sr-only">Dark Mode</span>
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => handleThemeChange('win95')}
-        className={`${theme === 'win95' ? 'bg-accent' : ''} hover:bg-accent`}
-      >
-        <Monitor className="h-4 w-4" />
-        <span className="sr-only">Windows 95 Mode</span>
-      </Button>
+      {/* Theme Mode Buttons */}
+      <div className="flex items-center gap-1 p-1 bg-muted rounded-lg">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => handleThemeChange('light')}
+          className={`h-8 w-8 ${theme === 'light' ? 'bg-background shadow-sm' : ''} hover:bg-background/50`}
+        >
+          <Sun className="h-4 w-4" />
+          <span className="sr-only">Light Mode</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => handleThemeChange('dark')}
+          className={`h-8 w-8 ${theme === 'dark' ? 'bg-background shadow-sm' : ''} hover:bg-background/50`}
+        >
+          <Moon className="h-4 w-4" />
+          <span className="sr-only">Dark Mode</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => handleThemeChange('win95')}
+          className={`h-8 w-8 ${theme === 'win95' ? 'bg-background shadow-sm' : ''} hover:bg-background/50`}
+        >
+          <Monitor className="h-4 w-4" />
+          <span className="sr-only">Windows 95 Mode</span>
+        </Button>
+      </div>
 
+      {/* Color Theme Dropdown */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
-            variant="ghost"
+            variant="outline"
             size="icon"
-            className="hover:bg-accent"
+            className="h-8 w-8 hover:bg-accent"
           >
             <Palette className="h-4 w-4" />
             <span className="sr-only">Color Theme</span>
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent align="end" className="w-40">
           <DropdownMenuItem 
             onClick={() => handleColorThemeChange('green')}
-            className={`${colorTheme === 'green' ? 'bg-social-green text-white' : ''}`}
+            className={`font-pixelated text-xs ${colorTheme === 'green' ? 'bg-social-green text-white' : ''}`}
           >
+            <div className="w-3 h-3 rounded-full bg-social-green mr-2"></div>
             Green Theme
           </DropdownMenuItem>
           <DropdownMenuItem 
             onClick={() => handleColorThemeChange('blue')}
-            className={`${colorTheme === 'blue' ? 'bg-social-blue text-white' : ''}`}
+            className={`font-pixelated text-xs ${colorTheme === 'blue' ? 'bg-social-blue text-white' : ''}`}
           >
+            <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
             Blue Theme
           </DropdownMenuItem>
           <DropdownMenuItem 
             onClick={() => handleColorThemeChange('red')}
-            className={`${colorTheme === 'red' ? 'bg-destructive text-white' : ''}`}
+            className={`font-pixelated text-xs ${colorTheme === 'red' ? 'bg-destructive text-white' : ''}`}
           >
+            <div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
             Red Theme
           </DropdownMenuItem>
           <DropdownMenuItem 
             onClick={() => handleColorThemeChange('orange')}
-            className={`${colorTheme === 'orange' ? 'bg-orange-500 text-white' : ''}`}
+            className={`font-pixelated text-xs ${colorTheme === 'orange' ? 'bg-orange-500 text-white' : ''}`}
           >
+            <div className="w-3 h-3 rounded-full bg-orange-500 mr-2"></div>
             Orange Theme
           </DropdownMenuItem>
           <DropdownMenuItem 
             onClick={() => handleColorThemeChange('purple')}
-            className={`${colorTheme === 'purple' ? 'bg-purple-500 text-white' : ''}`}
+            className={`font-pixelated text-xs ${colorTheme === 'purple' ? 'bg-purple-500 text-white' : ''}`}
           >
+            <div className="w-3 h-3 rounded-full bg-purple-500 mr-2"></div>
             Purple Theme
           </DropdownMenuItem>
         </DropdownMenuContent>
