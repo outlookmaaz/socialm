@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
@@ -20,7 +19,6 @@ import {
   WifiOff,
   UserX
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -34,280 +32,49 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-interface Notification {
-  id: string;
-  type: string;
-  content: string;
-  reference_id: string | null;
-  read: boolean;
-  created_at: string;
-  user_id: string;
-}
+import { useSimpleNotifications } from '@/hooks/use-simple-notifications';
 
 export function Notifications() {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showInfo, setShowInfo] = useState(false);
   const [showClearDialog, setShowClearDialog] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const { toast } = useToast();
 
-  const fetchNotifications = async (showLoading = true) => {
-    try {
-      if (showLoading) setLoading(true);
+  const {
+    notifications,
+    unreadCount,
+    loading,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+    clearAllNotifications,
+    requestPermission
+  } = useSimpleNotifications();
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      setCurrentUser(user);
-
-      // Fetch notifications from database
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', user.id)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching notifications:', error);
-        // Create some sample notifications if none exist
-        await createSampleNotifications(user.id);
-        // Try fetching again
-        const { data: retryData } = await supabase
-          .from('notifications')
-          .select('*')
-          .eq('user_id', user.id)
-          .is('deleted_at', null)
-          .order('created_at', { ascending: false });
-        
-        setNotifications(retryData || []);
-      } else {
-        setNotifications(data || []);
-      }
-    } catch (error) {
-      console.error('Error in fetchNotifications:', error);
-      setNotifications([]);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    // Check notification permission
+    if ('Notification' in window) {
+      setNotificationPermission(Notification.permission);
     }
-  };
 
-  const createSampleNotifications = async (userId: string) => {
-    try {
-      const sampleNotifications = [
-        {
-          user_id: userId,
-          type: 'like',
-          content: 'Owais liked your post',
-          read: false
-        },
-        {
-          user_id: userId,
-          type: 'like',
-          content: 'Owais liked your post',
-          read: false
-        },
-        {
-          user_id: userId,
-          type: 'comment',
-          content: 'raafi jamal commented on your post',
-          read: false
-        },
-        {
-          user_id: userId,
-          type: 'like',
-          content: 'Roohi Fida liked your post',
-          read: false
-        }
-      ];
+    // Listen for online/offline status
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
 
-      for (const notification of sampleNotifications) {
-        await supabase
-          .from('notifications')
-          .insert(notification);
-      }
-    } catch (error) {
-      console.log('Sample notifications creation handled');
-    }
-  };
-
-  const markAsRead = async (notificationId: string) => {
-    try {
-      // Optimistic update
-      setNotifications(prev =>
-        prev.map(notif =>
-          notif.id === notificationId ? { ...notif, read: true } : notif
-        )
-      );
-
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('id', notificationId);
-
-      if (error) {
-        console.error('Error marking notification as read:', error);
-        // Revert optimistic update on error
-        setNotifications(prev =>
-          prev.map(notif =>
-            notif.id === notificationId ? { ...notif, read: false } : notif
-          )
-        );
-      }
-    } catch (error) {
-      console.error('Error marking notification as read:', error);
-    }
-  };
-
-  const markAllAsRead = async () => {
-    try {
-      if (!currentUser) return;
-
-      // Optimistic update
-      const originalNotifications = [...notifications];
-      setNotifications(prev =>
-        prev.map(notif => ({ ...notif, read: true }))
-      );
-
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('user_id', currentUser.id)
-        .eq('read', false);
-
-      if (error) {
-        console.error('Error marking all as read:', error);
-        // Revert on error
-        setNotifications(originalNotifications);
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: 'Failed to mark all notifications as read'
-        });
-      } else {
-        toast({
-          title: 'All notifications marked as read',
-          description: 'Your notifications have been updated',
-        });
-      }
-    } catch (error) {
-      console.error('Error marking all as read:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to mark all notifications as read'
-      });
-    }
-  };
-
-  const clearAllNotifications = async () => {
-    try {
-      if (!currentUser) return;
-
-      // Optimistic update
-      const originalNotifications = [...notifications];
-      setNotifications([]);
-      setShowClearDialog(false);
-
-      const { error } = await supabase
-        .from('notifications')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('user_id', currentUser.id)
-        .is('deleted_at', null);
-
-      if (error) {
-        console.error('Error clearing notifications:', error);
-        // Revert on error
-        setNotifications(originalNotifications);
-        setShowClearDialog(false);
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: 'Failed to clear notifications'
-        });
-      } else {
-        toast({
-          title: 'All notifications cleared',
-          description: 'Your notifications have been cleared',
-        });
-      }
-    } catch (error) {
-      console.error('Error clearing notifications:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to clear notifications'
-      });
-    }
-  };
-
-  const deleteNotification = async (notificationId: string) => {
-    try {
-      // Optimistic update
-      const originalNotifications = [...notifications];
-      setNotifications(prev => prev.filter(notif => notif.id !== notificationId));
-
-      const { error } = await supabase
-        .from('notifications')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', notificationId);
-
-      if (error) {
-        console.error('Error deleting notification:', error);
-        // Revert on error
-        setNotifications(originalNotifications);
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: 'Failed to delete notification'
-        });
-      } else {
-        toast({
-          title: 'Notification deleted',
-          description: 'The notification has been removed',
-        });
-      }
-    } catch (error) {
-      console.error('Error deleting notification:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to delete notification'
-      });
-    }
-  };
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const requestNotificationPermission = async () => {
-    if ('Notification' in window) {
-      try {
-        const permission = await Notification.requestPermission();
-        setNotificationPermission(permission);
-        
-        if (permission === 'granted') {
-          toast({
-            title: 'Notifications enabled',
-            description: 'You will now receive push notifications'
-          });
-          
-          // Send a test notification
-          new Notification('Notifications Enabled!', {
-            body: 'You will now receive real-time notifications',
-            icon: '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png'
-          });
-        } else {
-          toast({
-            variant: 'destructive',
-            title: 'Notifications blocked',
-            description: 'Please enable notifications in your browser settings'
-          });
-        }
-      } catch (error) {
-        console.error('Error requesting notification permission:', error);
-      }
+    const granted = await requestPermission();
+    if (granted) {
+      setNotificationPermission('granted');
     }
   };
 
@@ -348,75 +115,6 @@ export function Notifications() {
         return 'border-l-muted-foreground bg-muted/5';
     }
   };
-
-  useEffect(() => {
-    fetchNotifications();
-    
-    // Check notification permission
-    if ('Notification' in window) {
-      setNotificationPermission(Notification.permission);
-    }
-
-    // Listen for online/offline status
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    // Silent background sync every 30 seconds
-    const syncInterval = setInterval(() => {
-      if (isOnline) {
-        fetchNotifications(false);
-      }
-    }, 30000);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-      clearInterval(syncInterval);
-    };
-  }, [isOnline]);
-
-  useEffect(() => {
-    if (currentUser) {
-      // Set up real-time subscription for notifications
-      const notificationsChannel = supabase
-        .channel('notifications-realtime')
-        .on('postgres_changes', 
-          { 
-            event: '*', 
-            schema: 'public', 
-            table: 'notifications',
-            filter: `user_id=eq.${currentUser.id}`
-          }, 
-          (payload) => {
-            console.log('Notification change:', payload);
-            if (payload.eventType === 'INSERT') {
-              const newNotification = payload.new as Notification;
-              setNotifications(prev => [newNotification, ...prev]);
-              
-              // Show browser notification if permission granted
-              if (notificationPermission === 'granted') {
-                new Notification('New Notification', {
-                  body: newNotification.content,
-                  icon: '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png'
-                });
-              }
-            } else {
-              fetchNotifications(false);
-            }
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(notificationsChannel);
-      };
-    }
-  }, [currentUser, notificationPermission]);
-
-  const unreadCount = notifications.filter(n => !n.read).length;
 
   if (loading) {
     return (
@@ -694,7 +392,10 @@ export function Notifications() {
             <AlertDialogFooter>
               <AlertDialogCancel className="font-pixelated text-xs">Cancel</AlertDialogCancel>
               <AlertDialogAction
-                onClick={clearAllNotifications}
+                onClick={() => {
+                  clearAllNotifications();
+                  setShowClearDialog(false);
+                }}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-pixelated text-xs"
               >
                 Clear All
