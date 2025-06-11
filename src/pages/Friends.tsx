@@ -307,86 +307,12 @@ export function Friends() {
     }
   };
 
-  const removeFriend = async (friend: Friend) => {
-    if (!friend.friend_id || !currentUser || removingFriend) {
-      console.error('No friend ID or current user provided');
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Unable to remove friend - missing information',
-      });
-      return;
-    }
-
-    try {
-      setRemovingFriend(friend.id);
-      console.log('Removing friend:', {
-        friendId: friend.friend_id,
-        friendUserId: friend.id,
-        currentUserId: currentUser.id
-      });
-
-      // Delete the friendship record
-      const { error } = await supabase
-        .from('friends')
-        .delete()
-        .eq('id', friend.friend_id);
-
-      if (error) {
-        console.error('Error removing friend:', error);
-        throw error;
-      }
-
-      console.log('Friend removed from database successfully');
-
-      // Immediately update UI
-      setFriends(prev => prev.filter(f => f.id !== friend.id));
-      setShowRemoveDialog({show: false, friend: null});
-
-      // Create notification for the removed friend
-      try {
-        const { data: currentUserProfile } = await supabase
-          .from('profiles')
-          .select('name')
-          .eq('id', currentUser.id)
-          .single();
-
-        const userName = currentUserProfile?.name || 'Someone';
-
-        await supabase
-          .from('notifications')
-          .insert({
-            user_id: friend.id,
-            type: 'friend_removed',
-            content: `${userName} removed you from their friends list`,
-            read: false
-          });
-      } catch (notifError) {
-        console.log('Notification creation handled:', notifError);
-      }
-
-      toast({
-        title: 'Friend removed',
-        description: 'Friend has been removed from your list and chat access blocked',
-      });
-
-      // Force refresh to ensure consistency
-      setTimeout(() => {
-        fetchFriends();
-      }, 1000);
-
-    } catch (error) {
-      console.error('Error removing friend:', error);
-      // Revert UI change if database operation failed
-      fetchFriends();
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to remove friend. Please try again.',
-      });
-    } finally {
-      setRemovingFriend(null);
-    }
+  const handleRemoveFriendClick = () => {
+    toast({
+      title: 'Coming Soon',
+      description: 'Remove friend feature is coming soon! Stay tuned for updates.',
+      duration: 3000,
+    });
   };
 
   const openChat = (userId: string) => {
@@ -437,14 +363,13 @@ export function Friends() {
                   Chat
                 </Button>
                 <Button
-                  onClick={() => setShowRemoveDialog({show: true, friend: user})}
+                  onClick={handleRemoveFriendClick}
                   size="sm"
-                  variant="destructive"
-                  className="font-pixelated text-xs h-6"
-                  disabled={removingFriend === user.id}
+                  variant="outline"
+                  className="font-pixelated text-xs h-6 border-muted-foreground/30 text-muted-foreground hover:bg-muted/50"
                 >
                   <UserMinus className="h-3 w-3 mr-1" />
-                  {removingFriend === user.id ? 'Removing...' : 'Remove'}
+                  Remove
                 </Button>
               </>
             )}
@@ -636,46 +561,6 @@ export function Friends() {
             </ScrollArea>
           </TabsContent>
         </Tabs>
-
-        {/* Remove Friend Confirmation Dialog */}
-        <AlertDialog open={showRemoveDialog.show} onOpenChange={(open) => setShowRemoveDialog({show: open, friend: null})}>
-          <AlertDialogContent className="max-w-md mx-auto animate-in zoom-in-95 duration-200">
-            <AlertDialogHeader>
-              <div className="flex items-center justify-between">
-                <AlertDialogTitle className="font-pixelated text-sm flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-destructive" />
-                  Remove Friend
-                </AlertDialogTitle>
-                <Button
-                  onClick={() => setShowRemoveDialog({show: false, friend: null})}
-                  size="icon"
-                  variant="ghost"
-                  className="h-6 w-6 rounded-full"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              <AlertDialogDescription className="font-pixelated text-xs">
-                Are you sure you want to remove <strong>{showRemoveDialog.friend?.name}</strong> from your friends list? 
-                This will also block personal chat access instantly. This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel className="font-pixelated text-xs">Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => {
-                  if (showRemoveDialog.friend) {
-                    removeFriend(showRemoveDialog.friend);
-                  }
-                }}
-                disabled={removingFriend !== null}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-pixelated text-xs"
-              >
-                {removingFriend ? 'Removing...' : 'Remove Friend'}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
     </DashboardLayout>
   );
