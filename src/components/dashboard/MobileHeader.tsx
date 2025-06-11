@@ -16,7 +16,6 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { UserSearch } from './UserSearch';
 import { useToast } from '@/hooks/use-toast';
-import { useEnhancedNotifications } from '@/hooks/use-enhanced-notifications';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,7 +46,7 @@ export function MobileHeader() {
   const [user, setUser] = useState<any>(null);
   const [open, setOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const { unreadCount } = useEnhancedNotifications();
+  const [unreadCount, setUnreadCount] = useState(0);
   const { toast } = useToast();
   
   useEffect(() => {
@@ -76,6 +75,53 @@ export function MobileHeader() {
     }
     
     getUserProfile();
+  }, []);
+
+  // Fetch unread notifications count
+  useEffect(() => {
+    async function fetchUnreadCount() {
+      try {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (!authUser) return;
+
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('id', { count: 'exact' })
+          .eq('user_id', authUser.id)
+          .eq('read', false)
+          .is('deleted_at', null);
+
+        if (!error) {
+          setUnreadCount(data?.length || 0);
+        }
+      } catch (error) {
+        console.error('Error fetching unread count:', error);
+      }
+    }
+
+    fetchUnreadCount();
+
+    // Set up real-time subscription for unread count
+    const { data: { user: authUser } } = supabase.auth.getUser();
+    authUser.then(({ data: { user } }) => {
+      if (user) {
+        const channel = supabase
+          .channel(`unread-count-${user.id}`)
+          .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}`
+          }, () => {
+            fetchUnreadCount();
+          })
+          .subscribe();
+
+        return () => {
+          supabase.removeChannel(channel);
+        };
+      }
+    });
   }, []);
 
   const handleLogout = async () => {
