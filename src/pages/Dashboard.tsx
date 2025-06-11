@@ -5,16 +5,13 @@ import { StoriesContainer } from '@/components/stories/StoriesContainer';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Send, Image as ImageIcon, X, Globe, Users } from 'lucide-react';
+import { Send, Image as ImageIcon, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 export function Dashboard() {
   const [postContent, setPostContent] = useState('');
-  const [postVisibility, setPostVisibility] = useState<'public' | 'friends'>('public');
   const [isPosting, setIsPosting] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -101,19 +98,17 @@ export function Dashboard() {
         .insert({
           content: postContent.trim(),
           user_id: user.id,
-          image_url: imageUrl,
-          visibility: postVisibility
+          image_url: imageUrl
         });
 
       if (error) throw error;
 
       setPostContent('');
-      setPostVisibility('public');
       removeImage();
       
       toast({
         title: 'Success',
-        description: `Your ${postVisibility} post has been shared!`
+        description: 'Your post has been shared!'
       });
     } catch (error) {
       console.error('Error creating post:', error);
@@ -173,47 +168,6 @@ export function Dashboard() {
                     </Button>
                   </div>
                 )}
-
-                {/* Privacy Settings */}
-                <div className="space-y-3 p-3 bg-muted/30 rounded-lg border border-social-green/10">
-                  <Label className="font-pixelated text-sm font-medium">Who can see this post?</Label>
-                  <RadioGroup
-                    value={postVisibility}
-                    onValueChange={(value: 'public' | 'friends') => setPostVisibility(value)}
-                    className="flex gap-4"
-                  >
-                    <div className="flex items-center space-x-2 cursor-pointer">
-                      <RadioGroupItem 
-                        value="public" 
-                        id="public"
-                        className="data-[state=checked]:bg-social-green data-[state=checked]:border-social-green"
-                      />
-                      <Label 
-                        htmlFor="public" 
-                        className="font-pixelated text-xs cursor-pointer flex items-center gap-2"
-                      >
-                        <Globe className="h-4 w-4 text-social-blue" />
-                        Public
-                        <span className="text-muted-foreground">(Everyone can see)</span>
-                      </Label>
-                    </div>
-                    <div className="flex items-center space-x-2 cursor-pointer">
-                      <RadioGroupItem 
-                        value="friends" 
-                        id="friends"
-                        className="data-[state=checked]:bg-social-green data-[state=checked]:border-social-green"
-                      />
-                      <Label 
-                        htmlFor="friends" 
-                        className="font-pixelated text-xs cursor-pointer flex items-center gap-2"
-                      >
-                        <Users className="h-4 w-4 text-social-purple" />
-                        Friends Only
-                        <span className="text-muted-foreground">(Only friends can see)</span>
-                      </Label>
-                    </div>
-                  </RadioGroup>
-                </div>
                 
                 <div className="flex items-center justify-between gap-3 pt-1">
                   <div className="flex items-center gap-3">
@@ -246,7 +200,7 @@ export function Dashboard() {
                     className="bg-social-green hover:bg-social-light-green text-white font-pixelated h-9 px-4 hover:scale-105 transition-transform"
                   >
                     <Send className="h-4 w-4 mr-2" />
-                    {isPosting ? 'Posting...' : `Share ${postVisibility === 'public' ? 'Publicly' : 'to Friends'}`}
+                    {isPosting ? 'Posting...' : 'Share Post'}
                   </Button>
                 </div>
               </div>
