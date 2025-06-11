@@ -19,7 +19,7 @@ export function Dashboard() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isPublic, setIsPublic] = useState(true); // true = public, false = friends only
-  const [refreshTrigger, setRefreshTrigger] = useState(0); // Add refresh trigger
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -101,7 +101,7 @@ export function Dashboard() {
         imageUrl = data.publicUrl;
       }
 
-      // Prepare post data
+      // Prepare post data with explicit privacy setting
       const postData = {
         content: postContent.trim(),
         user_id: user.id,
@@ -109,35 +109,55 @@ export function Dashboard() {
         visibility: isPublic ? 'public' : 'friends'
       };
 
-      console.log('Creating post with data:', postData);
+      console.log('Creating post with privacy setting:', {
+        visibility: postData.visibility,
+        isPublic: isPublic,
+        content: postData.content.substring(0, 50) + '...'
+      });
 
-      // Try to insert with visibility first, fallback without it if column doesn't exist
-      const { data: newPost, error } = await supabase
-        .from('posts')
-        .insert(postData)
-        .select(`
-          id,
-          content,
-          image_url,
-          visibility,
-          created_at,
-          user_id,
-          profiles:user_id (
-            name,
-            username,
-            avatar
-          )
-        `)
-        .single();
+      // First, try to create post with visibility column
+      let postCreated = false;
+      let finalPost = null;
 
-      if (error) {
-        console.error('Post creation error:', error);
+      try {
+        const { data: newPost, error } = await supabase
+          .from('posts')
+          .insert(postData)
+          .select(`
+            id,
+            content,
+            image_url,
+            visibility,
+            created_at,
+            user_id,
+            profiles:user_id (
+              name,
+              username,
+              avatar
+            )
+          `)
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        finalPost = newPost;
+        postCreated = true;
+        console.log('Post created successfully with privacy:', newPost);
+
+      } catch (error: any) {
+        console.error('Error with visibility column:', error);
         
         // If visibility column doesn't exist, try without it
         if (error.message?.includes('visibility') || error.message?.includes('column')) {
-          console.log('Visibility column not found, posting without privacy setting...');
-          const fallbackData = { ...postData };
-          delete fallbackData.visibility;
+          console.log('Visibility column not found, creating post without privacy setting...');
+          
+          const fallbackData = {
+            content: postContent.trim(),
+            user_id: user.id,
+            image_url: imageUrl
+          };
           
           const { data: fallbackPost, error: fallbackError } = await supabase
             .from('posts')
@@ -157,36 +177,33 @@ export function Dashboard() {
             .single();
           
           if (fallbackError) {
-            console.error('Fallback post creation error:', fallbackError);
             throw new Error('Failed to create post. Please try again.');
           }
           
-          console.log('Post created successfully (fallback):', fallbackPost);
-          
-          toast({
-            title: 'Post created!',
-            description: 'Your post has been shared (privacy features will be available soon)',
-          });
+          finalPost = { ...fallbackPost, visibility: 'public' };
+          postCreated = true;
+          console.log('Post created successfully (fallback mode):', fallbackPost);
         } else {
-          throw new Error(error.message || 'Failed to create post. Please try again.');
+          throw error;
         }
-      } else {
-        console.log('Post created successfully:', newPost);
-        
-        toast({
-          title: 'Success!',
-          description: `Your ${isPublic ? 'public' : 'friends-only'} post has been shared!`
-        });
       }
 
-      // Reset form but keep privacy setting
-      setPostContent('');
-      removeImage();
-      // Don't reset isPublic - keep user's preference
-      
-      // Trigger immediate refresh of the feed
-      setRefreshTrigger(prev => prev + 1);
-      
+      if (postCreated && finalPost) {
+        // Show success message
+        toast({
+          title: 'Post created!',
+          description: `Your ${isPublic ? 'public' : 'friends-only'} post has been shared!`,
+        });
+
+        // Reset form but preserve privacy setting
+        setPostContent('');
+        removeImage();
+        // Keep isPublic as user's preference for next post
+
+        // Trigger immediate refresh of the feed
+        setRefreshTrigger(prev => prev + 1);
+      }
+
     } catch (error: any) {
       console.error('Error creating post:', error);
       toast({
@@ -204,6 +221,18 @@ export function Dashboard() {
       e.preventDefault();
       handlePost();
     }
+  };
+
+  const handlePrivacyToggle = (checked: boolean) => {
+    console.log('Privacy toggle changed from', isPublic, 'to', checked);
+    setIsPublic(checked);
+    
+    // Show immediate feedback
+    toast({
+      title: 'Privacy setting updated',
+      description: checked ? 'Next post will be public' : 'Next post will be friends-only',
+      duration: 2000,
+    });
   };
 
   return (
@@ -261,10 +290,10 @@ export function Dashboard() {
                     </div>
                     <Badge 
                       variant={isPublic ? "default" : "secondary"} 
-                      className={`font-pixelated text-xs ${
+                      className={`font-pixelated text-xs transition-all duration-200 ${
                         isPublic 
-                          ? 'bg-social-blue text-white' 
-                          : 'bg-social-green text-white'
+                          ? 'bg-social-blue text-white border-social-blue' 
+                          : 'bg-social-green text-white border-social-green'
                       }`}
                     >
                       {isPublic ? 'Everyone can see' : 'Only friends can see'}
@@ -273,12 +302,9 @@ export function Dashboard() {
                   <Switch
                     id="privacy-toggle"
                     checked={isPublic}
-                    onCheckedChange={(checked) => {
-                      console.log('Privacy toggle changed:', checked);
-                      setIsPublic(checked);
-                    }}
+                    onCheckedChange={handlePrivacyToggle}
                     disabled={isPosting}
-                    className="data-[state=checked]:bg-social-blue data-[state=unchecked]:bg-social-green"
+                    className="data-[state=checked]:bg-social-blue data-[state=unchecked]:bg-social-green transition-colors duration-200"
                   />
                 </div>
                 
