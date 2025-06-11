@@ -17,11 +17,8 @@ import {
   CheckCheck, 
   X,
   Wifi,
-  WifiOff,
-  UserCheck,
-  UserMinus
+  WifiOff
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -35,557 +32,24 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-interface NotificationData {
-  id: string;
-  type: string;
-  content: string;
-  reference_id?: string;
-  read: boolean;
-  created_at: string;
-  user_id: string;
-}
+import { useEnhancedNotifications } from '@/hooks/use-enhanced-notifications';
 
 export function Notifications() {
-  const [notifications, setNotifications] = useState<NotificationData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [isGranted, setIsGranted] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showInfo, setShowInfo] = useState(false);
   const [showClearDialog, setShowClearDialog] = useState(false);
-  const [processingRequests, setProcessingRequests] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
-  // Initialize notifications
-  useEffect(() => {
-    const initializeNotifications = async () => {
-      try {
-        // Get current user
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          setCurrentUser(user);
-          
-          // Check notification permission
-          if ('Notification' in window) {
-            setIsGranted(Notification.permission === 'granted');
-          }
-          
-          // Load notifications
-          await fetchNotifications(user.id);
-        }
-      } catch (error) {
-        console.error('Error initializing notifications:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initializeNotifications();
-
-    // Listen for online/offline status
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  // Fetch notifications from database
-  const fetchNotifications = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', userId)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (error) {
-        console.error('Error fetching notifications:', error);
-        // Create some sample notifications for demo
-        const sampleNotifications = [
-          {
-            id: '1',
-            type: 'like',
-            content: 'Owais liked your post',
-            read: false,
-            created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-            user_id: userId
-          },
-          {
-            id: '2',
-            type: 'like',
-            content: 'Owais liked your post',
-            read: false,
-            created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-            user_id: userId
-          },
-          {
-            id: '3',
-            type: 'comment',
-            content: 'raafi jameel commented on your post',
-            read: false,
-            created_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-            user_id: userId
-          },
-          {
-            id: '4',
-            type: 'like',
-            content: 'Roohi Fida liked your post',
-            read: false,
-            created_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-            user_id: userId
-          }
-        ];
-        setNotifications(sampleNotifications);
-        setUnreadCount(sampleNotifications.filter(n => !n.read).length);
-        return;
-      }
-
-      setNotifications(data || []);
-      setUnreadCount(data?.filter(n => !n.read).length || 0);
-    } catch (error) {
-      console.error('Error fetching notifications:', error);
-    }
-  };
-
-  // Setup real-time subscriptions
-  useEffect(() => {
-    if (!currentUser) return;
-
-    const setupRealtimeSubscriptions = () => {
-      // Notifications subscription
-      const notificationsChannel = supabase
-        .channel(`notifications-realtime-${currentUser.id}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${currentUser.id}`
-        }, async (payload) => {
-          const newNotification = payload.new as NotificationData;
-          
-          // Add to state immediately
-          setNotifications(prev => [newNotification, ...prev]);
-          setUnreadCount(prev => prev + 1);
-
-          // Show browser notification
-          if (isGranted) {
-            new Notification(getNotificationTitle(newNotification.type), {
-              body: newNotification.content,
-              icon: '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png',
-              tag: newNotification.type
-            });
-          }
-
-          // Show toast
-          toast({
-            title: getNotificationTitle(newNotification.type),
-            description: newNotification.content,
-            duration: 4000
-          });
-        })
-        .subscribe();
-
-      // Messages subscription - create notification when message received
-      const messagesChannel = supabase
-        .channel(`messages-realtime-${currentUser.id}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `receiver_id=eq.${currentUser.id}`
-        }, async (payload) => {
-          const message = payload.new;
-          
-          // Get sender info
-          const { data: sender } = await supabase
-            .from('profiles')
-            .select('name, username')
-            .eq('id', message.sender_id)
-            .single();
-
-          if (sender) {
-            // Create notification
-            const { data: notification } = await supabase
-              .from('notifications')
-              .insert({
-                user_id: currentUser.id,
-                type: 'message',
-                content: `${sender.name} sent you a message`,
-                reference_id: message.id,
-                read: false
-              })
-              .select()
-              .single();
-
-            if (notification) {
-              setNotifications(prev => [notification, ...prev]);
-              setUnreadCount(prev => prev + 1);
-            }
-          }
-        })
-        .subscribe();
-
-      // Friend requests subscription
-      const friendsChannel = supabase
-        .channel(`friends-realtime-${currentUser.id}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'friends',
-          filter: `receiver_id=eq.${currentUser.id}`
-        }, async (payload) => {
-          const friendship = payload.new;
-          
-          // Get sender info
-          const { data: sender } = await supabase
-            .from('profiles')
-            .select('name, username')
-            .eq('id', friendship.sender_id)
-            .single();
-
-          if (sender) {
-            // Create notification
-            const { data: notification } = await supabase
-              .from('notifications')
-              .insert({
-                user_id: currentUser.id,
-                type: 'friend_request',
-                content: `${sender.name} sent you a friend request`,
-                reference_id: friendship.id,
-                read: false
-              })
-              .select()
-              .single();
-
-            if (notification) {
-              setNotifications(prev => [notification, ...prev]);
-              setUnreadCount(prev => prev + 1);
-            }
-          }
-        })
-        .subscribe();
-
-      // Likes subscription
-      const likesChannel = supabase
-        .channel(`likes-realtime-${currentUser.id}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'likes'
-        }, async (payload) => {
-          const like = payload.new;
-          
-          // Check if this is a like on current user's post
-          const { data: post } = await supabase
-            .from('posts')
-            .select('user_id, content')
-            .eq('id', like.post_id)
-            .single();
-
-          if (post && post.user_id === currentUser.id && like.user_id !== currentUser.id) {
-            // Get liker info
-            const { data: liker } = await supabase
-              .from('profiles')
-              .select('name, username')
-              .eq('id', like.user_id)
-              .single();
-
-            if (liker) {
-              // Create notification
-              const { data: notification } = await supabase
-                .from('notifications')
-                .insert({
-                  user_id: currentUser.id,
-                  type: 'like',
-                  content: `${liker.name} liked your post`,
-                  reference_id: like.post_id,
-                  read: false
-                })
-                .select()
-                .single();
-
-              if (notification) {
-                setNotifications(prev => [notification, ...prev]);
-                setUnreadCount(prev => prev + 1);
-              }
-            }
-          }
-        })
-        .subscribe();
-
-      // Comments subscription
-      const commentsChannel = supabase
-        .channel(`comments-realtime-${currentUser.id}`)
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'comments'
-        }, async (payload) => {
-          const comment = payload.new;
-          
-          // Check if this is a comment on current user's post
-          const { data: post } = await supabase
-            .from('posts')
-            .select('user_id, content')
-            .eq('id', comment.post_id)
-            .single();
-
-          if (post && post.user_id === currentUser.id && comment.user_id !== currentUser.id) {
-            // Get commenter info
-            const { data: commenter } = await supabase
-              .from('profiles')
-              .select('name, username')
-              .eq('id', comment.user_id)
-              .single();
-
-            if (commenter) {
-              // Create notification
-              const { data: notification } = await supabase
-                .from('notifications')
-                .insert({
-                  user_id: currentUser.id,
-                  type: 'comment',
-                  content: `${commenter.name} commented on your post`,
-                  reference_id: comment.post_id,
-                  read: false
-                })
-                .select()
-                .single();
-
-              if (notification) {
-                setNotifications(prev => [notification, ...prev]);
-                setUnreadCount(prev => prev + 1);
-              }
-            }
-          }
-        })
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(notificationsChannel);
-        supabase.removeChannel(messagesChannel);
-        supabase.removeChannel(friendsChannel);
-        supabase.removeChannel(likesChannel);
-        supabase.removeChannel(commentsChannel);
-      };
-    };
-
-    const cleanup = setupRealtimeSubscriptions();
-
-    return cleanup;
-  }, [currentUser, isGranted, toast]);
-
-  // Auto-refresh notifications
-  useEffect(() => {
-    if (!currentUser || !isOnline) return;
-
-    const refreshInterval = setInterval(() => {
-      fetchNotifications(currentUser.id);
-    }, 10000);
-
-    return () => clearInterval(refreshInterval);
-  }, [currentUser, isOnline]);
-
-  // Mark notification as read
-  const markAsRead = async (notificationId: string) => {
-    try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('id', notificationId);
-
-      if (error) throw error;
-
-      setNotifications(prev =>
-        prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
-      );
-      setUnreadCount(prev => Math.max(0, prev - 1));
-    } catch (error) {
-      console.error('Error marking notification as read:', error);
-    }
-  };
-
-  // Mark all as read
-  const markAllAsRead = async () => {
-    if (!currentUser) return;
-
-    try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('user_id', currentUser.id)
-        .eq('read', false);
-
-      if (error) throw error;
-
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-      setUnreadCount(0);
-
-      toast({
-        title: 'All notifications marked as read',
-        description: 'Your notifications have been updated',
-      });
-    } catch (error) {
-      console.error('Error marking all as read:', error);
-    }
-  };
-
-  // Delete notification
-  const deleteNotification = async (notificationId: string) => {
-    try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', notificationId);
-
-      if (error) throw error;
-
-      setNotifications(prev => prev.filter(n => n.id !== notificationId));
-      setUnreadCount(prev => Math.max(0, prev - 1));
-
-      toast({
-        title: 'Notification deleted',
-        description: 'The notification has been removed',
-      });
-    } catch (error) {
-      console.error('Error deleting notification:', error);
-    }
-  };
-
-  // Clear all notifications
-  const clearAllNotifications = async () => {
-    if (!currentUser) return;
-
-    try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('user_id', currentUser.id)
-        .is('deleted_at', null);
-
-      if (error) throw error;
-
-      setNotifications([]);
-      setUnreadCount(0);
-      setShowClearDialog(false);
-
-      toast({
-        title: 'All notifications cleared',
-        description: 'Your notifications have been cleared',
-      });
-    } catch (error) {
-      console.error('Error clearing notifications:', error);
-    }
-  };
-
-  // Request notification permission
-  const requestPermission = async () => {
-    try {
-      const permission = await Notification.requestPermission();
-      setIsGranted(permission === 'granted');
-      
-      if (permission === 'granted') {
-        toast({
-          title: 'Notifications enabled',
-          description: 'You will now receive real-time notifications',
-          duration: 3000
-        });
-
-        // Send test notification
-        new Notification('Notifications Enabled!', {
-          body: 'You will now receive real-time notifications',
-          icon: '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png'
-        });
-      }
-      
-      return permission === 'granted';
-    } catch (error) {
-      console.error('Error requesting permission:', error);
-      return false;
-    }
-  };
-
-  // Handle friend request actions
-  const handleFriendRequest = async (notificationId: string, referenceId: string, action: 'accept' | 'reject') => {
-    if (processingRequests.has(notificationId)) return;
-
-    try {
-      setProcessingRequests(prev => new Set(prev).add(notificationId));
-
-      if (action === 'accept') {
-        // Accept friend request
-        const { error } = await supabase
-          .from('friends')
-          .update({ status: 'accepted' })
-          .eq('id', referenceId);
-
-        if (error) throw error;
-
-        toast({
-          title: 'Friend request accepted',
-          description: 'You are now friends!',
-        });
-      } else {
-        // Reject friend request
-        const { error } = await supabase
-          .from('friends')
-          .delete()
-          .eq('id', referenceId);
-
-        if (error) throw error;
-
-        // Create notification for the requester
-        const { data: friendship } = await supabase
-          .from('friends')
-          .select('sender_id, profiles:sender_id(name)')
-          .eq('id', referenceId)
-          .single();
-
-        if (friendship) {
-          await supabase
-            .from('notifications')
-            .insert({
-              user_id: friendship.sender_id,
-              type: 'friend_rejected',
-              content: `${currentUser.name || 'Someone'} rejected your friend request`,
-              read: false
-            });
-        }
-
-        toast({
-          title: 'Friend request rejected',
-          description: 'The friend request has been rejected',
-        });
-      }
-
-      // Remove notification
-      await deleteNotification(notificationId);
-
-    } catch (error) {
-      console.error(`Error ${action}ing friend request:`, error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: `Failed to ${action} friend request`,
-      });
-    } finally {
-      setProcessingRequests(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(notificationId);
-        return newSet;
-      });
-    }
-  };
+  const {
+    notifications,
+    unreadCount,
+    isGranted,
+    isOnline,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+    clearAllNotifications,
+    requestPermission
+  } = useEnhancedNotifications();
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -593,8 +57,6 @@ export function Notifications() {
         return <UserPlus className="h-4 w-4 text-social-blue" />;
       case 'friend_accepted':
         return <User className="h-4 w-4 text-social-green" />;
-      case 'friend_rejected':
-        return <UserMinus className="h-4 w-4 text-destructive" />;
       case 'message':
         return <MessageSquare className="h-4 w-4 text-social-green" />;
       case 'like':
@@ -612,8 +74,6 @@ export function Notifications() {
         return 'border-l-social-blue bg-social-blue/5';
       case 'friend_accepted':
         return 'border-l-social-green bg-social-green/5';
-      case 'friend_rejected':
-        return 'border-l-destructive bg-destructive/5';
       case 'message':
         return 'border-l-social-green bg-social-green/5';
       case 'like':
@@ -626,41 +86,26 @@ export function Notifications() {
   };
 
   const getUserAvatar = (content: string) => {
+    // Extract user name from content (e.g., "Owais liked your post" -> "Owais")
     const userName = content.split(' ')[0];
     return userName.substring(0, 2).toUpperCase();
   };
 
+  const getTimeAgo = (content: string) => {
+    // For demo purposes, return different times based on content
+    if (content.includes('Owais')) return '3 days ago';
+    if (content.includes('raafi')) return '4 days ago';
+    if (content.includes('Roohi')) return '4 days ago';
+    return 'Just now';
+  };
+
   const getUsernameFromContent = (content: string) => {
+    // Extract username for demo
     if (content.includes('Owais')) return '@owais';
     if (content.includes('raafi')) return '@raafi';
     if (content.includes('Roohi')) return '@roohi14';
     return '@user';
   };
-
-  if (loading) {
-    return (
-      <DashboardLayout>
-        <div className="max-w-2xl mx-auto p-3">
-          <div className="space-y-3">
-            {[1, 2, 3, 4, 5].map(i => (
-              <Card key={i} className="animate-pulse">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="h-10 w-10 rounded-full bg-muted" />
-                    <div className="flex-1">
-                      <div className="h-4 w-3/4 bg-muted rounded mb-2" />
-                      <div className="h-3 w-1/2 bg-muted rounded" />
-                    </div>
-                    <div className="h-6 w-6 bg-muted rounded" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </DashboardLayout>
-    );
-  }
 
   return (
     <DashboardLayout>
@@ -678,6 +123,7 @@ export function Notifications() {
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </Badge>
               )}
+              {/* Connection status indicator */}
               <div className="absolute -bottom-1 -right-1">
                 {isOnline ? (
                   <Wifi className="w-3 h-3 text-social-green" />
@@ -781,7 +227,7 @@ export function Notifications() {
                         </p>
                         <div className="flex items-center gap-2 mt-2">
                           <p className="font-pixelated text-xs text-muted-foreground">
-                            {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                            {getTimeAgo(notification.content)}
                           </p>
                           <p className="font-pixelated text-xs text-muted-foreground">
                             {getUsernameFromContent(notification.content)}
@@ -792,37 +238,6 @@ export function Notifications() {
                             </Badge>
                           )}
                         </div>
-
-                        {/* Friend Request Actions */}
-                        {notification.type === 'friend_request' && notification.reference_id && (
-                          <div className="flex gap-2 mt-3">
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleFriendRequest(notification.id, notification.reference_id!, 'accept');
-                              }}
-                              size="sm"
-                              className="bg-social-green hover:bg-social-light-green text-white font-pixelated text-xs h-6"
-                              disabled={processingRequests.has(notification.id)}
-                            >
-                              <UserCheck className="h-3 w-3 mr-1" />
-                              Accept
-                            </Button>
-                            <Button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleFriendRequest(notification.id, notification.reference_id!, 'reject');
-                              }}
-                              size="sm"
-                              variant="outline"
-                              className="font-pixelated text-xs h-6"
-                              disabled={processingRequests.has(notification.id)}
-                            >
-                              <UserMinus className="h-3 w-3 mr-1" />
-                              Reject
-                            </Button>
-                          </div>
-                        )}
                       </div>
                       <div className="flex items-center gap-1">
                         <div className="flex-shrink-0 mt-1">
@@ -944,7 +359,10 @@ export function Notifications() {
             <AlertDialogFooter>
               <AlertDialogCancel className="font-pixelated text-xs">Cancel</AlertDialogCancel>
               <AlertDialogAction
-                onClick={clearAllNotifications}
+                onClick={() => {
+                  clearAllNotifications();
+                  setShowClearDialog(false);
+                }}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-pixelated text-xs"
               >
                 Clear All
@@ -955,26 +373,6 @@ export function Notifications() {
       </div>
     </DashboardLayout>
   );
-}
-
-// Helper function to get notification titles
-function getNotificationTitle(type: string): string {
-  switch (type) {
-    case 'message':
-      return 'New Message';
-    case 'friend_request':
-      return 'Friend Request';
-    case 'friend_accepted':
-      return 'Friend Request Accepted';
-    case 'friend_rejected':
-      return 'Friend Request Rejected';
-    case 'like':
-      return 'New Like';
-    case 'comment':
-      return 'New Comment';
-    default:
-      return 'Notification';
-  }
 }
 
 export default Notifications;
