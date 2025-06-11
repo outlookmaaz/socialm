@@ -20,22 +20,29 @@ export function Dashboard() {
   const postBoxRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  // Listen for scroll to top event
+  // Listen for scroll to top event with improved implementation
   useEffect(() => {
     const handleScrollToTop = () => {
+      console.log('Scroll to top event received');
       if (scrollAreaRef.current) {
-        // Scroll to the post box (top of feed)
+        // Scroll to the very top of the scroll area
         scrollAreaRef.current.scrollTo({
           top: 0,
           behavior: 'smooth'
         });
+        console.log('Scrolled to top');
       }
     };
 
+    // Listen for both custom event and direct function call
     window.addEventListener('scrollToTop', handleScrollToTop);
+    
+    // Also expose function globally for direct access
+    (window as any).scrollDashboardToTop = handleScrollToTop;
     
     return () => {
       window.removeEventListener('scrollToTop', handleScrollToTop);
+      delete (window as any).scrollDashboardToTop;
     };
   }, []);
 

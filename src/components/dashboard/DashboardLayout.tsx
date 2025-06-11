@@ -26,9 +26,27 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const handleTabClick = (route: string) => {
     if (route === 'dashboard') {
       if (currentPath === '/dashboard') {
-        // If already on dashboard, scroll to top
+        // If already on dashboard, scroll to top using multiple methods
+        console.log('Attempting to scroll to top from desktop nav');
+        
+        // Method 1: Custom event
         const event = new CustomEvent('scrollToTop');
         window.dispatchEvent(event);
+        
+        // Method 2: Direct function call (fallback)
+        setTimeout(() => {
+          if ((window as any).scrollDashboardToTop) {
+            (window as any).scrollDashboardToTop();
+          }
+        }, 100);
+        
+        // Method 3: Direct DOM manipulation (last resort)
+        setTimeout(() => {
+          const scrollArea = document.querySelector('[data-radix-scroll-area-viewport]');
+          if (scrollArea) {
+            scrollArea.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+        }, 200);
       } else {
         // Navigate to dashboard
         navigate('/dashboard');
