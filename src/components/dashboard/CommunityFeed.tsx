@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { Heart, MessageCircle, Send, MoreVertical, Edit, Trash2, ArrowUp, ChevronDown, ChevronUp } from 'lucide-react';
+import { Heart, MessageCircle, Send, MoreVertical, Edit, Trash2, ArrowUp, ChevronDown, ChevronUp, Globe, Users, Lock } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -31,6 +32,7 @@ interface Post {
   id: string;
   content: string;
   image_url: string | null;
+  visibility: 'public' | 'friends';
   created_at: string;
   user_id: string;
   profiles: {
@@ -142,6 +144,7 @@ export function CommunityFeed() {
           id,
           content,
           image_url,
+          visibility,
           created_at,
           user_id,
           profiles:user_id (
@@ -166,7 +169,10 @@ export function CommunityFeed() {
         `)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching posts:', error);
+        throw error;
+      }
 
       const formattedPosts = data?.map(post => ({
         ...post,
@@ -182,7 +188,7 @@ export function CommunityFeed() {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Failed to load posts'
+        description: 'Failed to load posts. Please refresh the page.'
       });
     } finally {
       setLoading(false);
@@ -406,6 +412,28 @@ export function CommunityFeed() {
     }
   }, []);
 
+  const getVisibilityIcon = (visibility: string) => {
+    return visibility === 'public' ? (
+      <Globe className="h-3 w-3 text-social-blue" />
+    ) : (
+      <Users className="h-3 w-3 text-social-green" />
+    );
+  };
+
+  const getVisibilityBadge = (visibility: string) => {
+    return visibility === 'public' ? (
+      <Badge variant="secondary" className="bg-social-blue/10 text-social-blue border-social-blue/20 font-pixelated text-xs">
+        <Globe className="h-2 w-2 mr-1" />
+        Public
+      </Badge>
+    ) : (
+      <Badge variant="secondary" className="bg-social-green/10 text-social-green border-social-green/20 font-pixelated text-xs">
+        <Users className="h-2 w-2 mr-1" />
+        Friends
+      </Badge>
+    );
+  };
+
   useEffect(() => {
     getCurrentUser();
     fetchPosts();
@@ -526,13 +554,16 @@ export function CommunityFeed() {
                         </AvatarFallback>
                       )}
                     </Avatar>
-                    <div>
-                      <p 
-                        className="font-pixelated text-xs font-medium cursor-pointer hover:text-social-green transition-colors"
-                        onClick={() => handleUserClick(post.user_id, post.profiles?.username)}
-                      >
-                        {post.profiles?.name}
-                      </p>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p 
+                          className="font-pixelated text-xs font-medium cursor-pointer hover:text-social-green transition-colors"
+                          onClick={() => handleUserClick(post.user_id, post.profiles?.username)}
+                        >
+                          {post.profiles?.name}
+                        </p>
+                        {getVisibilityBadge(post.visibility)}
+                      </div>
                       <p 
                         className="font-pixelated text-xs text-muted-foreground cursor-pointer hover:text-social-green transition-colors"
                         onClick={() => handleUserClick(post.user_id, post.profiles?.username)}

@@ -5,7 +5,10 @@ import { StoriesContainer } from '@/components/stories/StoriesContainer';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Send, Image as ImageIcon, X } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Send, Image as ImageIcon, X, Globe, Users, Lock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -15,6 +18,7 @@ export function Dashboard() {
   const [isPosting, setIsPosting] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isPublic, setIsPublic] = useState(true); // true = public, false = friends only
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -84,7 +88,10 @@ export function Dashboard() {
           .from('posts')
           .upload(fileName, selectedImage);
 
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          throw new Error('Failed to upload image. Please try again.');
+        }
 
         const { data } = supabase.storage
           .from('posts')
@@ -93,29 +100,36 @@ export function Dashboard() {
         imageUrl = data.publicUrl;
       }
 
+      // Insert post with visibility setting
       const { error } = await supabase
         .from('posts')
         .insert({
           content: postContent.trim(),
           user_id: user.id,
-          image_url: imageUrl
+          image_url: imageUrl,
+          visibility: isPublic ? 'public' : 'friends'
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Post creation error:', error);
+        throw new Error('Failed to create post. Please try again.');
+      }
 
+      // Reset form
       setPostContent('');
       removeImage();
+      setIsPublic(true); // Reset to public by default
       
       toast({
         title: 'Success',
-        description: 'Your post has been shared!'
+        description: `Your ${isPublic ? 'public' : 'friends-only'} post has been shared!`
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating post:', error);
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Failed to create post'
+        description: error.message || 'Failed to create post. Please check your connection and try again.'
       });
     } finally {
       setIsPosting(false);
@@ -168,6 +182,39 @@ export function Dashboard() {
                     </Button>
                   </div>
                 )}
+
+                {/* Privacy Settings */}
+                <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-social-green/10">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      {isPublic ? (
+                        <Globe className="h-4 w-4 text-social-blue" />
+                      ) : (
+                        <Users className="h-4 w-4 text-social-green" />
+                      )}
+                      <Label htmlFor="privacy-toggle" className="font-pixelated text-xs cursor-pointer">
+                        {isPublic ? 'Public' : 'Friends Only'}
+                      </Label>
+                    </div>
+                    <Badge 
+                      variant={isPublic ? "default" : "secondary"} 
+                      className={`font-pixelated text-xs ${
+                        isPublic 
+                          ? 'bg-social-blue text-white' 
+                          : 'bg-social-green text-white'
+                      }`}
+                    >
+                      {isPublic ? 'Everyone can see' : 'Only friends can see'}
+                    </Badge>
+                  </div>
+                  <Switch
+                    id="privacy-toggle"
+                    checked={isPublic}
+                    onCheckedChange={setIsPublic}
+                    disabled={isPosting}
+                    className="data-[state=checked]:bg-social-blue data-[state=unchecked]:bg-social-green"
+                  />
+                </div>
                 
                 <div className="flex items-center justify-between gap-3 pt-1">
                   <div className="flex items-center gap-3">
@@ -200,7 +247,7 @@ export function Dashboard() {
                     className="bg-social-green hover:bg-social-light-green text-white font-pixelated h-9 px-4 hover:scale-105 transition-transform"
                   >
                     <Send className="h-4 w-4 mr-2" />
-                    {isPosting ? 'Posting...' : 'Share Post'}
+                    {isPosting ? 'Posting...' : `Share ${isPublic ? 'Publicly' : 'to Friends'}`}
                   </Button>
                 </div>
               </div>
