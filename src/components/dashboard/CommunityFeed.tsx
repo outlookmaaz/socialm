@@ -85,6 +85,7 @@ export function CommunityFeed() {
   const feedRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const { toast } = useToast();
+  const channelsRef = useRef<any[]>([]);
 
   const isHomePage = location.pathname === '/dashboard';
 
@@ -206,15 +207,7 @@ export function CommunityFeed() {
       const existingLike = post.likes.find(like => like.user_id === currentUser.id);
 
       if (existingLike) {
-        // Unlike
-        const { error } = await supabase
-          .from('likes')
-          .delete()
-          .eq('id', existingLike.id);
-
-        if (error) throw error;
-
-        // Optimistic update
+        // Unlike - Optimistic update first
         setPosts(prevPosts =>
           prevPosts.map(p =>
             p.id === postId
@@ -229,8 +222,48 @@ export function CommunityFeed() {
               : p
           )
         );
+
+        const { error } = await supabase
+          .from('likes')
+          .delete()
+          .eq('id', existingLike.id);
+
+        if (error) {
+          // Revert optimistic update on error
+          setPosts(prevPosts =>
+            prevPosts.map(p =>
+              p.id === postId
+                ? {
+                    ...p,
+                    likes: [...p.likes, existingLike],
+                    _count: {
+                      ...p._count,
+                      likes: (p._count?.likes || 0) + 1
+                    }
+                  }
+                : p
+            )
+          );
+          throw error;
+        }
       } else {
-        // Like
+        // Like - Optimistic update first
+        const tempLike = { id: 'temp-' + Date.now(), user_id: currentUser.id };
+        setPosts(prevPosts =>
+          prevPosts.map(p =>
+            p.id === postId
+              ? {
+                  ...p,
+                  likes: [...p.likes, tempLike],
+                  _count: {
+                    ...p._count,
+                    likes: (p._count?.likes || 0) + 1
+                  }
+                }
+              : p
+          )
+        );
+
         const { data, error } = await supabase
           .from('likes')
           .insert({
@@ -240,19 +273,34 @@ export function CommunityFeed() {
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          // Revert optimistic update on error
+          setPosts(prevPosts =>
+            prevPosts.map(p =>
+              p.id === postId
+                ? {
+                    ...p,
+                    likes: p.likes.filter(like => like.id !== tempLike.id),
+                    _count: {
+                      ...p._count,
+                      likes: (p._count?.likes || 0) - 1
+                    }
+                  }
+                : p
+            )
+          );
+          throw error;
+        }
 
-        // Optimistic update
+        // Replace temp like with real like
         setPosts(prevPosts =>
           prevPosts.map(p =>
             p.id === postId
               ? {
                   ...p,
-                  likes: [...p.likes, { id: data.id, user_id: currentUser.id }],
-                  _count: {
-                    ...p._count,
-                    likes: (p._count?.likes || 0) + 1
-                  }
+                  likes: p.likes.map(like => 
+                    like.id === tempLike.id ? { id: data.id, user_id: currentUser.id } : like
+                  )
                 }
               : p
           )
@@ -298,7 +346,7 @@ export function CommunityFeed() {
 
       if (error) throw error;
 
-      // Update posts with new comment
+      // Optimistic update
       setPosts(prevPosts =>
         prevPosts.map(post =>
           post.id === postId
@@ -406,41 +454,243 @@ export function CommunityFeed() {
     }
   }, []);
 
+  // Setup real-time subscriptions with better error handling
+  const setupRealtimeSubscriptions = useCallback(() => {
+    // Cleanup existing channels
+    channelsRef.current.forEach(channel => {
+      supabase.removeChannel(channel);
+    });
+    channelsRef.current = [];
+
+    // Posts subscription - for new posts, updates, and deletes
+    const postsChannel = supabase
+      .channel('posts-realtime-feed')
+      .on('postgres_changes', 
+        { event: 'INSERT', schema: 'public', table: 'posts' }, 
+        async (payload) => {
+          console.log('New post detected:', payload.new);
+          
+          // Fetch the complete post data with relations
+          try {
+            const { data: newPost, error } = await supabase
+              .from('posts')
+              .select(`
+                id,
+                content,
+                image_url,
+                created_at,
+                user_id,
+                profiles:user_id (
+                  name,
+                  username,
+                  avatar
+                ),
+                likes (
+                  id,
+                  user_id
+                ),
+                comments (
+                  id,
+                  content,
+                  created_at,
+                  user_id,
+                  profiles:user_id (
+                    name,
+                    avatar
+                  )
+                )
+              `)
+              .eq('id', payload.new.id)
+              .single();
+
+            if (!error && newPost) {
+              const formattedPost = {
+                ...newPost,
+                _count: {
+                  likes: newPost.likes?.length || 0,
+                  comments: newPost.comments?.length || 0
+                }
+              };
+
+              setPosts(prevPosts => {
+                // Check if post already exists to avoid duplicates
+                const exists = prevPosts.some(p => p.id === formattedPost.id);
+                if (exists) return prevPosts;
+                
+                // Add new post to the beginning of the array
+                return [formattedPost, ...prevPosts];
+              });
+
+              // Show toast notification for new posts (except from current user)
+              if (currentUser && newPost.user_id !== currentUser.id) {
+                toast({
+                  title: 'New post',
+                  description: `${newPost.profiles.name} shared a new post`,
+                  duration: 3000,
+                });
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching new post details:', error);
+          }
+        }
+      )
+      .on('postgres_changes', 
+        { event: 'UPDATE', schema: 'public', table: 'posts' }, 
+        (payload) => {
+          console.log('Post updated:', payload.new);
+          setPosts(prevPosts =>
+            prevPosts.map(post =>
+              post.id === payload.new.id
+                ? { ...post, content: payload.new.content, image_url: payload.new.image_url }
+                : post
+            )
+          );
+        }
+      )
+      .on('postgres_changes', 
+        { event: 'DELETE', schema: 'public', table: 'posts' }, 
+        (payload) => {
+          console.log('Post deleted:', payload.old);
+          setPosts(prevPosts => prevPosts.filter(post => post.id !== payload.old.id));
+        }
+      )
+      .subscribe();
+
+    // Likes subscription
+    const likesChannel = supabase
+      .channel('likes-realtime-feed')
+      .on('postgres_changes', 
+        { event: 'INSERT', schema: 'public', table: 'likes' }, 
+        (payload) => {
+          console.log('New like:', payload.new);
+          setPosts(prevPosts =>
+            prevPosts.map(post =>
+              post.id === payload.new.post_id
+                ? {
+                    ...post,
+                    likes: [...post.likes, { id: payload.new.id, user_id: payload.new.user_id }],
+                    _count: {
+                      ...post._count,
+                      likes: (post._count?.likes || 0) + 1
+                    }
+                  }
+                : post
+            )
+          );
+        }
+      )
+      .on('postgres_changes', 
+        { event: 'DELETE', schema: 'public', table: 'likes' }, 
+        (payload) => {
+          console.log('Like removed:', payload.old);
+          setPosts(prevPosts =>
+            prevPosts.map(post =>
+              post.id === payload.old.post_id
+                ? {
+                    ...post,
+                    likes: post.likes.filter(like => like.id !== payload.old.id),
+                    _count: {
+                      ...post._count,
+                      likes: Math.max(0, (post._count?.likes || 0) - 1)
+                    }
+                  }
+                : post
+            )
+          );
+        }
+      )
+      .subscribe();
+
+    // Comments subscription
+    const commentsChannel = supabase
+      .channel('comments-realtime-feed')
+      .on('postgres_changes', 
+        { event: 'INSERT', schema: 'public', table: 'comments' }, 
+        async (payload) => {
+          console.log('New comment:', payload.new);
+          
+          // Fetch comment with profile data
+          try {
+            const { data: newComment, error } = await supabase
+              .from('comments')
+              .select(`
+                id,
+                content,
+                created_at,
+                user_id,
+                profiles:user_id (
+                  name,
+                  avatar
+                )
+              `)
+              .eq('id', payload.new.id)
+              .single();
+
+            if (!error && newComment) {
+              setPosts(prevPosts =>
+                prevPosts.map(post =>
+                  post.id === payload.new.post_id
+                    ? {
+                        ...post,
+                        comments: [...post.comments, newComment],
+                        _count: {
+                          ...post._count,
+                          comments: (post._count?.comments || 0) + 1
+                        }
+                      }
+                    : post
+                )
+              );
+            }
+          } catch (error) {
+            console.error('Error fetching new comment details:', error);
+          }
+        }
+      )
+      .on('postgres_changes', 
+        { event: 'DELETE', schema: 'public', table: 'comments' }, 
+        (payload) => {
+          console.log('Comment deleted:', payload.old);
+          setPosts(prevPosts =>
+            prevPosts.map(post =>
+              post.id === payload.old.post_id
+                ? {
+                    ...post,
+                    comments: post.comments.filter(comment => comment.id !== payload.old.id),
+                    _count: {
+                      ...post._count,
+                      comments: Math.max(0, (post._count?.comments || 0) - 1)
+                    }
+                  }
+                : post
+            )
+          );
+        }
+      )
+      .subscribe();
+
+    // Store channels for cleanup
+    channelsRef.current = [postsChannel, likesChannel, commentsChannel];
+  }, [currentUser, toast]);
+
   useEffect(() => {
     getCurrentUser();
     fetchPosts();
+  }, [getCurrentUser, fetchPosts]);
 
-    // Set up real-time subscriptions
-    const postsChannel = supabase
-      .channel('posts-realtime')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'posts' }, 
-        () => fetchPosts()
-      )
-      .subscribe();
-
-    const likesChannel = supabase
-      .channel('likes-realtime')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'likes' }, 
-        () => fetchPosts()
-      )
-      .subscribe();
-
-    const commentsChannel = supabase
-      .channel('comments-realtime')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'comments' }, 
-        () => fetchPosts()
-      )
-      .subscribe();
+  useEffect(() => {
+    if (currentUser) {
+      setupRealtimeSubscriptions();
+    }
 
     return () => {
-      supabase.removeChannel(postsChannel);
-      supabase.removeChannel(likesChannel);
-      supabase.removeChannel(commentsChannel);
+      channelsRef.current.forEach(channel => {
+        supabase.removeChannel(channel);
+      });
+      channelsRef.current = [];
     };
-  }, [getCurrentUser, fetchPosts]);
+  }, [currentUser, setupRealtimeSubscriptions]);
 
   useEffect(() => {
     const feedElement = feedRef.current;
