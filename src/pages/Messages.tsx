@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Send, MessageSquare, User, ArrowLeft, UserX } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -29,10 +29,16 @@ interface Message {
   };
 }
 
+interface MessageGroup {
+  date: string;
+  messages: Message[];
+}
+
 export function Messages() {
   const [friends, setFriends] = useState<Friend[]>([]);
   const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [messageGroups, setMessageGroups] = useState<MessageGroup[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sendingMessage, setSendingMessage] = useState(false);
@@ -121,6 +127,33 @@ export function Messages() {
     }
   };
 
+  const groupMessagesByDate = (messages: Message[]): MessageGroup[] => {
+    const groups: { [key: string]: Message[] } = {};
+    
+    messages.forEach(message => {
+      const messageDate = new Date(message.created_at);
+      let dateKey: string;
+      
+      if (isToday(messageDate)) {
+        dateKey = 'Today';
+      } else if (isYesterday(messageDate)) {
+        dateKey = 'Yesterday';
+      } else {
+        dateKey = format(messageDate, 'MMMM d, yyyy');
+      }
+      
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
+      }
+      groups[dateKey].push(message);
+    });
+    
+    return Object.entries(groups).map(([date, messages]) => ({
+      date,
+      messages: messages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    }));
+  };
+
   const fetchMessages = async (friendId: string) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -175,6 +208,7 @@ export function Messages() {
       }));
 
       setMessages(formattedMessages);
+      setMessageGroups(groupMessagesByDate(formattedMessages));
       scrollToBottom();
     } catch (error) {
       console.error('Error fetching messages:', error);
@@ -244,7 +278,9 @@ export function Messages() {
         setMessages(prevMessages => {
           const exists = prevMessages.some(msg => msg.id === data.id);
           if (exists) return prevMessages;
-          return [...prevMessages, newMessageWithSender];
+          const updatedMessages = [...prevMessages, newMessageWithSender];
+          setMessageGroups(groupMessagesByDate(updatedMessages));
+          return updatedMessages;
         });
       }
       
@@ -262,10 +298,21 @@ export function Messages() {
   };
 
   const scrollToBottom = () => {
-    if (messagesContainerRef.current) {
-      const { scrollHeight, clientHeight } = messagesContainerRef.current;
-      messagesContainerRef.current.scrollTop = scrollHeight - clientHeight;
-    }
+    setTimeout(() => {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
+  };
+
+  const formatMessageTime = (dateString: string) => {
+    return format(new Date(dateString), 'HH:mm');
+  };
+
+  const getDateSeparatorText = (date: string) => {
+    if (date === 'Today') return 'Today';
+    if (date === 'Yesterday') return 'Yesterday';
+    return date;
   };
 
   useEffect(() => {
@@ -318,6 +365,7 @@ export function Messages() {
                     };
                     
                     const updated = [...prevMessages, messageWithSender];
+                    setMessageGroups(groupMessagesByDate(updated));
                     setTimeout(scrollToBottom, 100);
                     return updated;
                   });
@@ -372,34 +420,7 @@ export function Messages() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
-
-  useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-
-    let touchStartY = 0;
-    let scrollStartY = 0;
-
-    const handleTouchStart = (e: TouchEvent) => {
-      touchStartY = e.touches[0].clientY;
-      scrollStartY = container.scrollTop;
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      const touchY = e.touches[0].clientY;
-      const diff = touchStartY - touchY;
-      container.scrollTop = scrollStartY + diff;
-    };
-
-    container.addEventListener('touchstart', handleTouchStart);
-    container.addEventListener('touchmove', handleTouchMove);
-
-    return () => {
-      container.removeEventListener('touchstart', handleTouchStart);
-      container.removeEventListener('touchmove', handleTouchMove);
-    };
-  }, []);
+  }, [messageGroups]);
 
   return (
     <DashboardLayout>
@@ -518,63 +539,77 @@ export function Messages() {
                   )}
                 </div>
 
-                {/* Messages Area - Scrollable */}
-                <ScrollArea 
-                  ref={messagesContainerRef}
-                  className="flex-1 p-4 space-y-4"
-                  style={{ 
-                    height: 'calc(100vh - 180px)',
-                    WebkitOverflowScrolling: 'touch'
-                  }}
-                >
-                  {selectedFriend.isBlocked && (
-                    <div className="text-center py-4">
-                      <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 max-w-md mx-auto">
-                        <UserX className="h-8 w-8 text-destructive mx-auto mb-2" />
-                        <p className="font-pixelated text-sm text-destructive font-medium">
-                          You are no longer friends
-                        </p>
-                        <p className="font-pixelated text-xs text-muted-foreground mt-1">
-                          You cannot send or receive messages from this user
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {messages.map((message) => (
-                    <div 
-                      key={message.id}
-                      className={`flex ${message.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div className={`flex gap-2 max-w-[80%] ${message.sender_id === currentUser?.id ? 'flex-row-reverse' : ''}`}>
-                        <Avatar className="h-8 w-8 mt-1">
-                          {message.sender?.avatar ? (
-                            <AvatarImage src={message.sender.avatar} />
-                          ) : (
-                            <AvatarFallback className="bg-primary text-primary-foreground">
-                              {message.sender?.name.substring(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          )}
-                        </Avatar>
-                        <div 
-                          className={`p-3 rounded-lg ${
-                            message.sender_id === currentUser?.id 
-                              ? 'bg-primary text-primary-foreground' 
-                              : 'bg-muted'
-                          }`}
-                        >
-                          <p className="text-sm whitespace-pre-wrap break-words">
-                            {message.content}
-                          </p>
-                          <p className="text-xs opacity-70 mt-1">
-                            {format(new Date(message.created_at), 'HH:mm')}
-                          </p>
+                {/* Messages Area - Scrollable with proper height */}
+                <div className="flex-1 overflow-hidden">
+                  <ScrollArea 
+                    ref={messagesContainerRef}
+                    className="h-full p-4"
+                  >
+                    <div className="space-y-4 pb-4">
+                      {selectedFriend.isBlocked && (
+                        <div className="text-center py-4">
+                          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 max-w-md mx-auto">
+                            <UserX className="h-8 w-8 text-destructive mx-auto mb-2" />
+                            <p className="font-pixelated text-sm text-destructive font-medium">
+                              You are no longer friends
+                            </p>
+                            <p className="font-pixelated text-xs text-muted-foreground mt-1">
+                              You cannot send or receive messages from this user
+                            </p>
+                          </div>
                         </div>
-                      </div>
+                      )}
+                      
+                      {messageGroups.map((group, groupIndex) => (
+                        <div key={groupIndex} className="space-y-4">
+                          {/* Date Separator */}
+                          <div className="flex items-center justify-center py-2">
+                            <div className="bg-muted px-3 py-1 rounded-full">
+                              <p className="font-pixelated text-xs text-muted-foreground">
+                                {getDateSeparatorText(group.date)}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          {/* Messages for this date */}
+                          {group.messages.map((message, messageIndex) => (
+                            <div 
+                              key={message.id}
+                              className={`flex ${message.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'}`}
+                            >
+                              <div className={`flex gap-2 max-w-[80%] ${message.sender_id === currentUser?.id ? 'flex-row-reverse' : ''}`}>
+                                <Avatar className="h-8 w-8 mt-1">
+                                  {message.sender?.avatar ? (
+                                    <AvatarImage src={message.sender.avatar} />
+                                  ) : (
+                                    <AvatarFallback className="bg-primary text-primary-foreground">
+                                      {message.sender?.name.substring(0, 2).toUpperCase()}
+                                    </AvatarFallback>
+                                  )}
+                                </Avatar>
+                                <div 
+                                  className={`p-3 rounded-lg ${
+                                    message.sender_id === currentUser?.id 
+                                      ? 'bg-primary text-primary-foreground' 
+                                      : 'bg-muted'
+                                  }`}
+                                >
+                                  <p className="text-sm whitespace-pre-wrap break-words">
+                                    {message.content}
+                                  </p>
+                                  <p className="text-xs opacity-70 mt-1">
+                                    {formatMessageTime(message.created_at)}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                      <div ref={messagesEndRef} />
                     </div>
-                  ))}
-                  <div ref={messagesEndRef} />
-                </ScrollArea>
+                  </ScrollArea>
+                </div>
 
                 {/* Message Input */}
                 <div className="p-4 border-t bg-background">
