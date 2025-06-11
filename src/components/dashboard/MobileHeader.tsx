@@ -16,7 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { UserSearch } from './UserSearch';
 import { useToast } from '@/hooks/use-toast';
-import { useSimpleNotifications } from '@/hooks/use-simple-notifications';
+import { useEnhancedNotifications } from '@/hooks/use-enhanced-notifications';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,7 +47,7 @@ export function MobileHeader() {
   const [user, setUser] = useState<any>(null);
   const [open, setOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const { unreadCount } = useSimpleNotifications();
+  const { unreadCount } = useEnhancedNotifications();
   const { toast } = useToast();
   
   useEffect(() => {
