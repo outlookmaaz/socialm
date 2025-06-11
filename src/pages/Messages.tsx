@@ -300,9 +300,9 @@ export function Messages() {
   const scrollToBottom = () => {
     setTimeout(() => {
       if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        messagesEndRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
       }
-    }, 100);
+    }, 50);
   };
 
   const formatMessageTime = (dateString: string) => {
@@ -429,75 +429,77 @@ export function Messages() {
           {/* Friends List */}
           <div className={`w-full md:w-80 border-r flex flex-col ${selectedFriend ? 'hidden md:flex' : ''}`}>
             {/* Friends List Header */}
-            <div className="p-4 border-b bg-muted/30">
+            <div className="p-4 border-b bg-muted/30 flex-shrink-0">
               <h2 className="font-pixelated text-sm font-medium">Messages</h2>
             </div>
 
             {/* Friends List - Scrollable */}
-            <ScrollArea className="flex-1">
-              {loading ? (
-                <div className="space-y-2 p-4">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="flex items-center gap-3 p-3 animate-pulse">
-                      <div className="h-12 w-12 rounded-full bg-muted" />
-                      <div className="flex-1">
-                        <div className="h-4 w-24 bg-muted rounded mb-2" />
-                        <div className="h-3 w-32 bg-muted rounded" />
+            <div className="flex-1 overflow-hidden">
+              <ScrollArea className="h-full">
+                {loading ? (
+                  <div className="space-y-2 p-4">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="flex items-center gap-3 p-3 animate-pulse">
+                        <div className="h-12 w-12 rounded-full bg-muted" />
+                        <div className="flex-1">
+                          <div className="h-4 w-24 bg-muted rounded mb-2" />
+                          <div className="h-3 w-32 bg-muted rounded" />
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : friends.length > 0 ? (
-                <div className="p-2">
-                  {friends.map(friend => (
-                    <div
-                      key={friend.id}
-                      onClick={() => {
-                        setSelectedFriend(friend);
-                        fetchMessages(friend.id);
-                      }}
-                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 hover:bg-accent/50 ${
-                        selectedFriend?.id === friend.id 
-                          ? 'bg-accent shadow-md' 
-                          : ''
-                      } ${friend.isBlocked ? 'opacity-50' : ''}`}
-                    >
-                      <Avatar className="h-12 w-12 border-2 border-background">
-                        {friend.avatar ? (
-                          <AvatarImage src={friend.avatar} />
-                        ) : (
-                          <AvatarFallback className="bg-primary text-primary-foreground">
-                            {friend.name.substring(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        )}
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{friend.name}</p>
-                        <p className="text-sm text-muted-foreground truncate">
-                          @{friend.username}
-                          {friend.isBlocked && (
-                            <span className="ml-2 text-destructive font-pixelated text-xs">
-                              • No longer friends
-                            </span>
+                    ))}
+                  </div>
+                ) : friends.length > 0 ? (
+                  <div className="p-2">
+                    {friends.map(friend => (
+                      <div
+                        key={friend.id}
+                        onClick={() => {
+                          setSelectedFriend(friend);
+                          fetchMessages(friend.id);
+                        }}
+                        className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 hover:bg-accent/50 ${
+                          selectedFriend?.id === friend.id 
+                            ? 'bg-accent shadow-md' 
+                            : ''
+                        } ${friend.isBlocked ? 'opacity-50' : ''}`}
+                      >
+                        <Avatar className="h-12 w-12 border-2 border-background flex-shrink-0">
+                          {friend.avatar ? (
+                            <AvatarImage src={friend.avatar} />
+                          ) : (
+                            <AvatarFallback className="bg-primary text-primary-foreground">
+                              {friend.name.substring(0, 2).toUpperCase()}
+                            </AvatarFallback>
                           )}
-                        </p>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate text-sm">{friend.name}</p>
+                          <p className="text-sm text-muted-foreground truncate">
+                            @{friend.username}
+                            {friend.isBlocked && (
+                              <span className="ml-2 text-destructive font-pixelated text-xs">
+                                • No longer friends
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        {friend.isBlocked && (
+                          <UserX className="h-4 w-4 text-destructive flex-shrink-0" />
+                        )}
                       </div>
-                      {friend.isBlocked && (
-                        <UserX className="h-4 w-4 text-destructive" />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-                  <User className="h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground mb-4">No friends yet</p>
-                  <Button variant="outline" asChild>
-                    <a href="/friends">Find Friends</a>
-                  </Button>
-                </div>
-              )}
-            </ScrollArea>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+                    <User className="h-12 w-12 text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground mb-4">No friends yet</p>
+                    <Button variant="outline" asChild>
+                      <a href="/friends">Find Friends</a>
+                    </Button>
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
           </div>
 
           {/* Chat Area */}
@@ -505,16 +507,16 @@ export function Messages() {
             {selectedFriend ? (
               <>
                 {/* Chat Header */}
-                <div className="flex items-center gap-3 p-4 border-b bg-muted/30">
+                <div className="flex items-center gap-3 p-4 border-b bg-muted/30 flex-shrink-0">
                   <Button 
                     variant="ghost" 
                     size="icon" 
                     onClick={() => setSelectedFriend(null)}
-                    className="md:hidden"
+                    className="md:hidden flex-shrink-0"
                   >
                     <ArrowLeft className="h-4 w-4" />
                   </Button>
-                  <Avatar className="h-10 w-10">
+                  <Avatar className="h-10 w-10 flex-shrink-0">
                     {selectedFriend.avatar ? (
                       <AvatarImage src={selectedFriend.avatar} />
                     ) : (
@@ -524,7 +526,7 @@ export function Messages() {
                     )}
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{selectedFriend.name}</p>
+                    <p className="font-medium truncate text-sm">{selectedFriend.name}</p>
                     <p className="text-sm text-muted-foreground truncate">
                       @{selectedFriend.username}
                       {selectedFriend.isBlocked && (
@@ -535,7 +537,7 @@ export function Messages() {
                     </p>
                   </div>
                   {selectedFriend.isBlocked && (
-                    <UserX className="h-5 w-5 text-destructive" />
+                    <UserX className="h-5 w-5 text-destructive flex-shrink-0" />
                   )}
                 </div>
 
@@ -543,9 +545,9 @@ export function Messages() {
                 <div className="flex-1 overflow-hidden">
                   <ScrollArea 
                     ref={messagesContainerRef}
-                    className="h-full p-4"
+                    className="h-full"
                   >
-                    <div className="space-y-4 pb-4">
+                    <div className="p-4 space-y-3 min-h-full">
                       {selectedFriend.isBlocked && (
                         <div className="text-center py-4">
                           <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 max-w-md mx-auto">
@@ -561,7 +563,7 @@ export function Messages() {
                       )}
                       
                       {messageGroups.map((group, groupIndex) => (
-                        <div key={groupIndex} className="space-y-4">
+                        <div key={groupIndex} className="space-y-3">
                           {/* Date Separator */}
                           <div className="flex items-center justify-center py-2">
                             <div className="bg-muted px-3 py-1 rounded-full">
@@ -572,13 +574,13 @@ export function Messages() {
                           </div>
                           
                           {/* Messages for this date */}
-                          {group.messages.map((message, messageIndex) => (
+                          {group.messages.map((message) => (
                             <div 
                               key={message.id}
-                              className={`flex ${message.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'}`}
+                              className={`flex gap-2 ${message.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'}`}
                             >
-                              <div className={`flex gap-2 max-w-[80%] ${message.sender_id === currentUser?.id ? 'flex-row-reverse' : ''}`}>
-                                <Avatar className="h-8 w-8 mt-1">
+                              <div className={`flex gap-2 max-w-[75%] ${message.sender_id === currentUser?.id ? 'flex-row-reverse' : ''}`}>
+                                <Avatar className="h-8 w-8 mt-1 flex-shrink-0">
                                   {message.sender?.avatar ? (
                                     <AvatarImage src={message.sender.avatar} />
                                   ) : (
@@ -606,13 +608,13 @@ export function Messages() {
                           ))}
                         </div>
                       ))}
-                      <div ref={messagesEndRef} />
+                      <div ref={messagesEndRef} className="h-1" />
                     </div>
                   </ScrollArea>
                 </div>
 
                 {/* Message Input */}
-                <div className="p-4 border-t bg-background">
+                <div className="p-4 border-t bg-background flex-shrink-0">
                   {selectedFriend.isBlocked ? (
                     <div className="text-center py-2">
                       <p className="font-pixelated text-xs text-muted-foreground">
@@ -632,13 +634,13 @@ export function Messages() {
                               sendMessage();
                             }
                           }}
-                          className="min-h-[45px] max-h-[120px] resize-none"
+                          className="min-h-[45px] max-h-[120px] resize-none flex-1"
                           disabled={sendingMessage || selectedFriend.isBlocked}
                         />
                         <Button
                           onClick={sendMessage}
                           disabled={!newMessage.trim() || sendingMessage || selectedFriend.isBlocked}
-                          className="bg-primary hover:bg-primary/90"
+                          className="bg-primary hover:bg-primary/90 flex-shrink-0"
                         >
                           <Send className="h-4 w-4" />
                         </Button>
