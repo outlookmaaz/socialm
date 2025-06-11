@@ -146,10 +146,10 @@ export function CommunityFeed({ refreshTrigger }: CommunityFeedProps) {
         setLoading(true);
       }
       
-      console.log('Fetching posts...');
+      console.log('Fetching posts with privacy filtering...');
 
-      // Try to fetch posts with visibility column first
-      let query = supabase
+      // Fetch posts with visibility column and proper filtering
+      const { data, error } = await supabase
         .from('posts')
         .select(`
           id,
@@ -180,62 +180,8 @@ export function CommunityFeed({ refreshTrigger }: CommunityFeedProps) {
         `)
         .order('created_at', { ascending: false });
 
-      const { data, error } = await query;
-
       if (error) {
         console.error('Error fetching posts:', error);
-        
-        // If visibility column doesn't exist, try without it
-        if (error.message?.includes('visibility') || error.message?.includes('column')) {
-          console.log('Trying without visibility column...');
-          const { data: fallbackData, error: fallbackError } = await supabase
-            .from('posts')
-            .select(`
-              id,
-              content,
-              image_url,
-              created_at,
-              user_id,
-              profiles:user_id (
-                name,
-                username,
-                avatar
-              ),
-              likes (
-                id,
-                user_id
-              ),
-              comments (
-                id,
-                content,
-                created_at,
-                user_id,
-                profiles:user_id (
-                  name,
-                  avatar
-                )
-              )
-            `)
-            .order('created_at', { ascending: false });
-
-          if (fallbackError) {
-            throw fallbackError;
-          }
-
-          const formattedFallbackPosts = fallbackData?.map(post => ({
-            ...post,
-            visibility: 'public' as const, // Default to public for existing posts
-            _count: {
-              likes: post.likes?.length || 0,
-              comments: post.comments?.length || 0
-            }
-          })) || [];
-
-          setPosts(formattedFallbackPosts);
-          console.log('Loaded posts (fallback):', formattedFallbackPosts.length);
-          return;
-        }
-        
         throw error;
       }
 
@@ -249,7 +195,15 @@ export function CommunityFeed({ refreshTrigger }: CommunityFeedProps) {
       })) || [];
 
       setPosts(formattedPosts);
-      console.log('Loaded posts:', formattedPosts.length);
+      console.log('Loaded posts:', formattedPosts.length, 'posts with privacy settings');
+      
+      // Log privacy distribution for debugging
+      const privacyStats = formattedPosts.reduce((acc, post) => {
+        acc[post.visibility || 'public'] = (acc[post.visibility || 'public'] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      console.log('Privacy distribution:', privacyStats);
+      
     } catch (error) {
       console.error('Error fetching posts:', error);
       if (showLoadingState) {

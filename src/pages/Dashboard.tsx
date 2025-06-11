@@ -102,114 +102,67 @@ export function Dashboard() {
       }
 
       // Prepare post data with explicit privacy setting
-      const postData = {
-        content: postContent.trim(),
-        user_id: user.id,
-        image_url: imageUrl,
-        visibility: isPublic ? 'public' : 'friends'
-      };
-
-      console.log('Creating post with privacy setting:', {
-        visibility: postData.visibility,
+      const visibilityValue = isPublic ? 'public' : 'friends';
+      
+      console.log('Creating post with settings:', {
+        visibility: visibilityValue,
         isPublic: isPublic,
-        content: postData.content.substring(0, 50) + '...'
+        content: postContent.trim().substring(0, 50) + '...',
+        hasImage: !!imageUrl
       });
 
-      // First, try to create post with visibility column
-      let postCreated = false;
-      let finalPost = null;
+      // Create the post with proper error handling
+      const { data: newPost, error } = await supabase
+        .from('posts')
+        .insert({
+          content: postContent.trim(),
+          user_id: user.id,
+          image_url: imageUrl,
+          visibility: visibilityValue
+        })
+        .select(`
+          id,
+          content,
+          image_url,
+          visibility,
+          created_at,
+          user_id,
+          profiles:user_id (
+            name,
+            username,
+            avatar
+          )
+        `)
+        .single();
 
-      try {
-        const { data: newPost, error } = await supabase
-          .from('posts')
-          .insert(postData)
-          .select(`
-            id,
-            content,
-            image_url,
-            visibility,
-            created_at,
-            user_id,
-            profiles:user_id (
-              name,
-              username,
-              avatar
-            )
-          `)
-          .single();
-
-        if (error) {
-          throw error;
-        }
-
-        finalPost = newPost;
-        postCreated = true;
-        console.log('Post created successfully with privacy:', newPost);
-
-      } catch (error: any) {
-        console.error('Error with visibility column:', error);
-        
-        // If visibility column doesn't exist, try without it
-        if (error.message?.includes('visibility') || error.message?.includes('column')) {
-          console.log('Visibility column not found, creating post without privacy setting...');
-          
-          const fallbackData = {
-            content: postContent.trim(),
-            user_id: user.id,
-            image_url: imageUrl
-          };
-          
-          const { data: fallbackPost, error: fallbackError } = await supabase
-            .from('posts')
-            .insert(fallbackData)
-            .select(`
-              id,
-              content,
-              image_url,
-              created_at,
-              user_id,
-              profiles:user_id (
-                name,
-                username,
-                avatar
-              )
-            `)
-            .single();
-          
-          if (fallbackError) {
-            throw new Error('Failed to create post. Please try again.');
-          }
-          
-          finalPost = { ...fallbackPost, visibility: 'public' };
-          postCreated = true;
-          console.log('Post created successfully (fallback mode):', fallbackPost);
-        } else {
-          throw error;
-        }
+      if (error) {
+        console.error('Database error:', error);
+        throw new Error(`Failed to create post: ${error.message}`);
       }
 
-      if (postCreated && finalPost) {
-        // Show success message
-        toast({
-          title: 'Post created!',
-          description: `Your ${isPublic ? 'public' : 'friends-only'} post has been shared!`,
-        });
+      console.log('Post created successfully:', newPost);
 
-        // Reset form but preserve privacy setting
-        setPostContent('');
-        removeImage();
-        // Keep isPublic as user's preference for next post
+      // Show success message with privacy info
+      toast({
+        title: 'Post created!',
+        description: `Your ${isPublic ? 'public' : 'friends-only'} post has been shared successfully!`,
+        duration: 3000,
+      });
 
-        // Trigger immediate refresh of the feed
-        setRefreshTrigger(prev => prev + 1);
-      }
+      // Reset form but preserve privacy setting
+      setPostContent('');
+      removeImage();
+      
+      // Trigger immediate refresh of the feed
+      setRefreshTrigger(prev => prev + 1);
 
     } catch (error: any) {
       console.error('Error creating post:', error);
       toast({
         variant: 'destructive',
-        title: 'Error',
-        description: error.message || 'Failed to create post. Please check your connection and try again.'
+        title: 'Failed to create post',
+        description: error.message || 'Please check your connection and try again.',
+        duration: 5000,
       });
     } finally {
       setIsPosting(false);
@@ -224,13 +177,13 @@ export function Dashboard() {
   };
 
   const handlePrivacyToggle = (checked: boolean) => {
-    console.log('Privacy toggle changed from', isPublic, 'to', checked);
+    console.log('Privacy toggle changed:', { from: isPublic, to: checked });
     setIsPublic(checked);
     
     // Show immediate feedback
     toast({
       title: 'Privacy setting updated',
-      description: checked ? 'Next post will be public' : 'Next post will be friends-only',
+      description: checked ? 'Next post will be visible to everyone' : 'Next post will be visible to friends only',
       duration: 2000,
     });
   };
@@ -285,7 +238,7 @@ export function Dashboard() {
                         <Users className="h-4 w-4 text-social-green" />
                       )}
                       <Label htmlFor="privacy-toggle" className="font-pixelated text-xs cursor-pointer">
-                        {isPublic ? 'Public' : 'Friends Only'}
+                        {isPublic ? 'Public Post' : 'Friends Only'}
                       </Label>
                     </div>
                     <Badge 
@@ -296,7 +249,7 @@ export function Dashboard() {
                           : 'bg-social-green text-white border-social-green'
                       }`}
                     >
-                      {isPublic ? 'Everyone can see' : 'Only friends can see'}
+                      {isPublic ? 'Everyone can see this' : 'Only friends can see this'}
                     </Badge>
                   </div>
                   <Switch
