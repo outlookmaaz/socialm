@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Send, MessageSquare, User, ArrowLeft, UserX, Circle } from 'lucide-react';
+import { Send, MessageSquare, User, ArrowLeft, UserX, Circle, Heart } from 'lucide-react';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -695,6 +695,21 @@ export function Messages() {
                             </p>
                             <p className="font-pixelated text-xs text-muted-foreground mt-1">
                               You cannot send or receive messages from this user
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Show "Start chatting" message when no messages exist */}
+                      {messageGroups.length === 0 && !selectedFriend.isBlocked && (
+                        <div className="text-center py-8">
+                          <div className="bg-muted/30 border border-muted rounded-lg p-6 max-w-md mx-auto">
+                            <Heart className="h-8 w-8 text-social-green mx-auto mb-3" />
+                            <p className="font-pixelated text-sm font-medium text-foreground mb-2">
+                              Start your conversation
+                            </p>
+                            <p className="font-pixelated text-xs text-muted-foreground">
+                              Say hello to {selectedFriend.name}! This is the beginning of your chat history.
                             </p>
                           </div>
                         </div>
