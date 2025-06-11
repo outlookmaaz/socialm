@@ -609,7 +609,7 @@ export function Messages() {
                               )}
                             </p>
                             
-                            {/* Only show unread count badge if there are unread messages */}
+                            {/* Only show unread count badge if there are actual unread messages */}
                             {friend.unreadCount && friend.unreadCount > 0 && (
                               <Badge 
                                 variant="default" 
