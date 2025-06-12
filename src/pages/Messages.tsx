@@ -609,7 +609,7 @@ export function Messages() {
                               )}
                             </p>
                             
-                            {/* Only show unread count badge if there are actual unread messages */}
+                            {/* Only show unread count badge if there are actual unread messages (greater than 0) */}
                             {friend.unreadCount && friend.unreadCount > 0 && (
                               <Badge 
                                 variant="default" 
@@ -679,118 +679,121 @@ export function Messages() {
                   )}
                 </div>
 
-                {/* Messages Area - Fixed height calculation */}
-                <div className="flex-1 min-h-0 flex flex-col">
-                  <ScrollArea 
-                    ref={messagesContainerRef}
-                    className="flex-1"
-                  >
-                    <div className="p-3 space-y-2">
-                      {selectedFriend.isBlocked && (
-                        <div className="text-center py-4">
-                          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 max-w-md mx-auto">
-                            <UserX className="h-6 w-6 text-destructive mx-auto mb-2" />
-                            <p className="font-pixelated text-xs text-destructive font-medium">
-                              You are no longer friends
-                            </p>
-                            <p className="font-pixelated text-xs text-muted-foreground mt-1">
-                              You cannot send or receive messages from this user
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Show "Start chatting" message when no messages exist */}
-                      {messageGroups.length === 0 && !selectedFriend.isBlocked && (
-                        <div className="text-center py-8">
-                          <div className="bg-muted/30 border border-muted rounded-lg p-6 max-w-md mx-auto">
-                            <Heart className="h-8 w-8 text-social-green mx-auto mb-3" />
-                            <p className="font-pixelated text-sm font-medium text-foreground mb-2">
-                              Start your conversation
-                            </p>
-                            <p className="font-pixelated text-xs text-muted-foreground">
-                              Say hello to {selectedFriend.name}! This is the beginning of your chat history.
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {messageGroups.map((group, groupIndex) => (
-                        <div key={groupIndex} className="space-y-2">
-                          {/* Date Separator */}
-                          <div className="flex items-center justify-center py-1">
-                            <div className="bg-muted px-2 py-1 rounded-full">
-                              <p className="font-pixelated text-xs text-muted-foreground">
-                                {getDateSeparatorText(group.date)}
+                {/* Messages Area and Input - Fixed layout with proper spacing */}
+                <div className="flex-1 flex flex-col min-h-0">
+                  {/* Messages Area - Takes remaining space */}
+                  <div className="flex-1 overflow-hidden">
+                    <ScrollArea 
+                      ref={messagesContainerRef}
+                      className="h-full"
+                    >
+                      <div className="p-3 space-y-2">
+                        {selectedFriend.isBlocked && (
+                          <div className="text-center py-4">
+                            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 max-w-md mx-auto">
+                              <UserX className="h-6 w-6 text-destructive mx-auto mb-2" />
+                              <p className="font-pixelated text-xs text-destructive font-medium">
+                                You are no longer friends
+                              </p>
+                              <p className="font-pixelated text-xs text-muted-foreground mt-1">
+                                You cannot send or receive messages from this user
                               </p>
                             </div>
                           </div>
-                          
-                          {/* Messages for this date */}
-                          {group.messages.map((message) => (
-                            <div 
-                              key={message.id}
-                              className={`flex gap-2 ${message.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'}`}
-                            >
-                              <div className={`flex gap-2 max-w-[75%] ${message.sender_id === currentUser?.id ? 'flex-row-reverse' : ''}`}>
-                                <Avatar className="h-6 w-6 mt-1 flex-shrink-0">
-                                  {message.sender?.avatar ? (
-                                    <AvatarImage src={message.sender.avatar} />
-                                  ) : (
-                                    <AvatarFallback className="bg-primary text-primary-foreground font-pixelated text-xs">
-                                      {message.sender?.name.substring(0, 2).toUpperCase()}
-                                    </AvatarFallback>
-                                  )}
-                                </Avatar>
-                                <div 
-                                  className={`p-2 rounded-lg relative ${
-                                    message.sender_id === currentUser?.id 
-                                      ? 'bg-primary text-primary-foreground' 
-                                      : 'bg-muted'
-                                  }`}
-                                >
-                                  <p className="text-xs whitespace-pre-wrap break-words font-pixelated">
-                                    {message.content}
-                                  </p>
-                                  <div className="flex items-center justify-between mt-1">
-                                    <p className="text-xs opacity-70 font-pixelated">
-                                      {formatMessageTime(message.created_at)}
-                                    </p>
-                                    {/* Read Status for sent messages */}
-                                    {message.sender_id === currentUser?.id && (
-                                      <div className="ml-2">
-                                        {message.read ? (
-                                          <div className="flex">
-                                            <Circle className="h-2 w-2 fill-social-green text-social-green" />
-                                            <Circle className="h-2 w-2 fill-social-green text-social-green -ml-1" />
-                                          </div>
-                                        ) : (
-                                          <Circle className="h-2 w-2 fill-muted-foreground text-muted-foreground" />
-                                        )}
-                                      </div>
+                        )}
+                        
+                        {/* Show "Start chatting" message when no messages exist */}
+                        {messageGroups.length === 0 && !selectedFriend.isBlocked && (
+                          <div className="text-center py-8">
+                            <div className="bg-muted/30 border border-muted rounded-lg p-6 max-w-md mx-auto">
+                              <Heart className="h-8 w-8 text-social-green mx-auto mb-3" />
+                              <p className="font-pixelated text-sm font-medium text-foreground mb-2">
+                                Start your conversation
+                              </p>
+                              <p className="font-pixelated text-xs text-muted-foreground">
+                                Say hello to {selectedFriend.name}! This is the beginning of your chat history.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {messageGroups.map((group, groupIndex) => (
+                          <div key={groupIndex} className="space-y-2">
+                            {/* Date Separator */}
+                            <div className="flex items-center justify-center py-1">
+                              <div className="bg-muted px-2 py-1 rounded-full">
+                                <p className="font-pixelated text-xs text-muted-foreground">
+                                  {getDateSeparatorText(group.date)}
+                                </p>
+                              </div>
+                            </div>
+                            
+                            {/* Messages for this date */}
+                            {group.messages.map((message) => (
+                              <div 
+                                key={message.id}
+                                className={`flex gap-2 ${message.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'}`}
+                              >
+                                <div className={`flex gap-2 max-w-[75%] ${message.sender_id === currentUser?.id ? 'flex-row-reverse' : ''}`}>
+                                  <Avatar className="h-6 w-6 mt-1 flex-shrink-0">
+                                    {message.sender?.avatar ? (
+                                      <AvatarImage src={message.sender.avatar} />
+                                    ) : (
+                                      <AvatarFallback className="bg-primary text-primary-foreground font-pixelated text-xs">
+                                        {message.sender?.name.substring(0, 2).toUpperCase()}
+                                      </AvatarFallback>
                                     )}
+                                  </Avatar>
+                                  <div 
+                                    className={`p-2 rounded-lg relative ${
+                                      message.sender_id === currentUser?.id 
+                                        ? 'bg-primary text-primary-foreground' 
+                                        : 'bg-muted'
+                                    }`}
+                                  >
+                                    <p className="text-xs whitespace-pre-wrap break-words font-pixelated">
+                                      {message.content}
+                                    </p>
+                                    <div className="flex items-center justify-between mt-1">
+                                      <p className="text-xs opacity-70 font-pixelated">
+                                        {formatMessageTime(message.created_at)}
+                                      </p>
+                                      {/* Read Status for sent messages */}
+                                      {message.sender_id === currentUser?.id && (
+                                        <div className="ml-2">
+                                          {message.read ? (
+                                            <div className="flex">
+                                              <Circle className="h-2 w-2 fill-social-green text-social-green" />
+                                              <Circle className="h-2 w-2 fill-social-green text-social-green -ml-1" />
+                                            </div>
+                                          ) : (
+                                            <Circle className="h-2 w-2 fill-muted-foreground text-muted-foreground" />
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                          ))}
-                        </div>
-                      ))}
-                      <div ref={messagesEndRef} className="h-1" />
-                    </div>
-                  </ScrollArea>
+                            ))}
+                          </div>
+                        ))}
+                        <div ref={messagesEndRef} className="h-1" />
+                      </div>
+                    </ScrollArea>
+                  </div>
 
-                  {/* Message Input - Fixed at bottom with proper spacing */}
-                  <div className="border-t bg-background p-3 flex-shrink-0">
+                  {/* Message Input - Fixed at bottom with proper spacing and visibility */}
+                  <div className="border-t bg-background flex-shrink-0">
                     {selectedFriend.isBlocked ? (
-                      <div className="text-center py-2">
+                      <div className="text-center py-4">
                         <p className="font-pixelated text-xs text-muted-foreground">
                           You cannot send messages to this user
                         </p>
                       </div>
                     ) : (
-                      <div className="space-y-2">
-                        <div className="flex gap-2">
+                      <div className="p-4 space-y-2">
+                        <div className="flex gap-2 items-end">
                           <Textarea 
                             placeholder="Type a message..." 
                             value={newMessage}
@@ -801,13 +804,13 @@ export function Messages() {
                                 sendMessage();
                               }
                             }}
-                            className="min-h-[44px] max-h-[100px] resize-none flex-1 font-pixelated text-xs"
+                            className="min-h-[48px] max-h-[120px] resize-none flex-1 font-pixelated text-xs"
                             disabled={sendingMessage || selectedFriend.isBlocked}
                           />
                           <Button
                             onClick={sendMessage}
                             disabled={!newMessage.trim() || sendingMessage || selectedFriend.isBlocked}
-                            className="bg-primary hover:bg-primary/90 flex-shrink-0 h-11 w-11"
+                            className="bg-primary hover:bg-primary/90 flex-shrink-0 h-12 w-12"
                           >
                             <Send className="h-4 w-4" />
                           </Button>
