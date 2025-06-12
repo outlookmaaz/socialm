@@ -134,7 +134,7 @@ export function CommunityFeed() {
     }
   };
 
-  // Silent background fetch without loading states - COMPLETELY INVISIBLE TO USER
+  // Silent background fetch without loading states
   const fetchPostsInBackground = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -177,11 +177,11 @@ export function CommunityFeed() {
         }
       })) || [];
 
-      // Smoothly update posts without ANY loading indicators or user interruption
+      // Smoothly update posts without any loading indicators
       setPosts(formattedPosts);
     } catch (error) {
       console.error('Background fetch error:', error);
-      // CRITICAL: Don't show error toast for background updates to avoid interrupting user
+      // Don't show error toast for background updates to avoid interrupting user
     }
   }, []);
 
@@ -464,14 +464,14 @@ export function CommunityFeed() {
     getCurrentUser();
     fetchPosts();
 
-    // Set up real-time subscriptions for COMPLETELY SEAMLESS background updates
+    // Set up real-time subscriptions for seamless background updates
     const postsChannel = supabase
       .channel('posts-realtime')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'posts' }, 
         (payload) => {
           console.log('Post change detected:', payload);
-          // Use INVISIBLE background fetch - user sees NO loading indicators
+          // Use background fetch to avoid loading indicators
           fetchPostsInBackground();
         }
       )
@@ -483,7 +483,7 @@ export function CommunityFeed() {
         { event: '*', schema: 'public', table: 'likes' }, 
         (payload) => {
           console.log('Like change detected:', payload);
-          // Use INVISIBLE background fetch - user sees NO loading indicators
+          // Use background fetch to avoid loading indicators
           fetchPostsInBackground();
         }
       )
@@ -495,7 +495,7 @@ export function CommunityFeed() {
         { event: '*', schema: 'public', table: 'comments' }, 
         (payload) => {
           console.log('Comment change detected:', payload);
-          // Use INVISIBLE background fetch - user sees NO loading indicators
+          // Use background fetch to avoid loading indicators
           fetchPostsInBackground();
         }
       )
