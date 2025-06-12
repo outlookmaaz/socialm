@@ -107,12 +107,6 @@ export function Notifications() {
         },
         {
           user_id: userId,
-          type: 'like',
-          content: 'Owais liked your post',
-          read: false
-        },
-        {
-          user_id: userId,
           type: 'comment',
           content: 'raafi jamal commented on your post',
           read: false
@@ -530,6 +524,12 @@ export function Notifications() {
               >
                 Enable
               </Button>
+            </div>
+            {/* Additional improvement message */}
+            <div className="mt-2 pt-2 border-t border-social-blue/20">
+              <p className="font-pixelated text-xs text-muted-foreground">
+                💡 We're improving notification functionality with real-time updates and better performance!
+              </p>
             </div>
           </div>
         )}
