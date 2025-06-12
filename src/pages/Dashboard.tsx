@@ -15,7 +15,7 @@ export function Dashboard() {
   const [isPosting, setIsPosting] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [feedKey, setFeedKey] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const postBoxRef = useRef<HTMLDivElement>(null);
@@ -44,67 +44,6 @@ export function Dashboard() {
     return () => {
       window.removeEventListener('scrollToTop', handleScrollToTop);
       delete (window as any).scrollDashboardToTop;
-    };
-  }, []);
-
-  // Set up real-time subscriptions for automatic feed updates
-  useEffect(() => {
-    const postsChannel = supabase
-      .channel('dashboard-posts-realtime')
-      .on('postgres_changes', 
-        { event: 'INSERT', schema: 'public', table: 'posts' }, 
-        (payload) => {
-          console.log('New post detected:', payload);
-          // Trigger feed refresh
-          setRefreshTrigger(prev => prev + 1);
-        }
-      )
-      .on('postgres_changes', 
-        { event: 'UPDATE', schema: 'public', table: 'posts' }, 
-        (payload) => {
-          console.log('Post updated:', payload);
-          // Trigger feed refresh
-          setRefreshTrigger(prev => prev + 1);
-        }
-      )
-      .on('postgres_changes', 
-        { event: 'DELETE', schema: 'public', table: 'posts' }, 
-        (payload) => {
-          console.log('Post deleted:', payload);
-          // Trigger feed refresh
-          setRefreshTrigger(prev => prev + 1);
-        }
-      )
-      .subscribe();
-
-    const likesChannel = supabase
-      .channel('dashboard-likes-realtime')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'likes' }, 
-        (payload) => {
-          console.log('Like activity detected:', payload);
-          // Trigger feed refresh
-          setRefreshTrigger(prev => prev + 1);
-        }
-      )
-      .subscribe();
-
-    const commentsChannel = supabase
-      .channel('dashboard-comments-realtime')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'comments' }, 
-        (payload) => {
-          console.log('Comment activity detected:', payload);
-          // Trigger feed refresh
-          setRefreshTrigger(prev => prev + 1);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(postsChannel);
-      supabase.removeChannel(likesChannel);
-      supabase.removeChannel(commentsChannel);
     };
   }, []);
 
@@ -196,8 +135,8 @@ export function Dashboard() {
       setPostContent('');
       removeImage();
       
-      // Trigger immediate feed refresh
-      setRefreshTrigger(prev => prev + 1);
+      // Force feed refresh by updating key - this will trigger CommunityFeed to re-mount
+      setFeedKey(prev => prev + 1);
       
       toast({
         title: 'Success',
@@ -300,8 +239,8 @@ export function Dashboard() {
             </CardContent>
           </Card>
           
-          {/* Feed with refresh trigger */}
-          <CommunityFeed key={refreshTrigger} />
+          {/* Feed with key-based refresh for seamless updates */}
+          <CommunityFeed key={feedKey} />
         </ScrollArea>
       </div>
     </DashboardLayout>

@@ -134,8 +134,62 @@ export function CommunityFeed() {
     }
   };
 
+  // Silent background fetch without loading states
+  const fetchPostsInBackground = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`
+          id,
+          content,
+          image_url,
+          created_at,
+          user_id,
+          profiles:user_id (
+            name,
+            username,
+            avatar
+          ),
+          likes (
+            id,
+            user_id
+          ),
+          comments (
+            id,
+            content,
+            created_at,
+            user_id,
+            profiles:user_id (
+              name,
+              avatar
+            )
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedPosts = data?.map(post => ({
+        ...post,
+        _count: {
+          likes: post.likes?.length || 0,
+          comments: post.comments?.length || 0
+        }
+      })) || [];
+
+      // Smoothly update posts without any loading indicators
+      setPosts(formattedPosts);
+    } catch (error) {
+      console.error('Background fetch error:', error);
+      // Don't show error toast for background updates to avoid interrupting user
+    }
+  }, []);
+
+  // Initial fetch with loading state (only on first load)
   const fetchPosts = useCallback(async () => {
     try {
+      setLoading(true);
+
       const { data, error } = await supabase
         .from('posts')
         .select(`
@@ -410,12 +464,16 @@ export function CommunityFeed() {
     getCurrentUser();
     fetchPosts();
 
-    // Set up real-time subscriptions
+    // Set up real-time subscriptions for seamless background updates
     const postsChannel = supabase
       .channel('posts-realtime')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'posts' }, 
-        () => fetchPosts()
+        (payload) => {
+          console.log('Post change detected:', payload);
+          // Use background fetch to avoid loading indicators
+          fetchPostsInBackground();
+        }
       )
       .subscribe();
 
@@ -423,7 +481,11 @@ export function CommunityFeed() {
       .channel('likes-realtime')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'likes' }, 
-        () => fetchPosts()
+        (payload) => {
+          console.log('Like change detected:', payload);
+          // Use background fetch to avoid loading indicators
+          fetchPostsInBackground();
+        }
       )
       .subscribe();
 
@@ -431,7 +493,11 @@ export function CommunityFeed() {
       .channel('comments-realtime')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'comments' }, 
-        () => fetchPosts()
+        (payload) => {
+          console.log('Comment change detected:', payload);
+          // Use background fetch to avoid loading indicators
+          fetchPostsInBackground();
+        }
       )
       .subscribe();
 
@@ -440,7 +506,7 @@ export function CommunityFeed() {
       supabase.removeChannel(likesChannel);
       supabase.removeChannel(commentsChannel);
     };
-  }, [getCurrentUser, fetchPosts]);
+  }, [getCurrentUser, fetchPosts, fetchPostsInBackground]);
 
   useEffect(() => {
     const feedElement = feedRef.current;
