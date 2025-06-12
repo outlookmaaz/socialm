@@ -136,8 +136,6 @@ export function CommunityFeed() {
 
   const fetchPosts = useCallback(async () => {
     try {
-      setLoading(true);
-
       const { data, error } = await supabase
         .from('posts')
         .select(`
@@ -412,37 +410,28 @@ export function CommunityFeed() {
     getCurrentUser();
     fetchPosts();
 
-    // Set up real-time subscriptions with optimized updates
+    // Set up real-time subscriptions
     const postsChannel = supabase
-      .channel('posts-realtime-feed')
+      .channel('posts-realtime')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'posts' }, 
-        () => {
-          // Silently refresh posts without loading state
-          fetchPosts();
-        }
+        () => fetchPosts()
       )
       .subscribe();
 
     const likesChannel = supabase
-      .channel('likes-realtime-feed')
+      .channel('likes-realtime')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'likes' }, 
-        () => {
-          // Silently refresh posts to update like counts
-          fetchPosts();
-        }
+        () => fetchPosts()
       )
       .subscribe();
 
     const commentsChannel = supabase
-      .channel('comments-realtime-feed')
+      .channel('comments-realtime')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'comments' }, 
-        () => {
-          // Silently refresh posts to update comments
-          fetchPosts();
-        }
+        () => fetchPosts()
       )
       .subscribe();
 

@@ -15,7 +15,7 @@ export function Dashboard() {
   const [isPosting, setIsPosting] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [feedKey, setFeedKey] = useState(0);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const postBoxRef = useRef<HTMLDivElement>(null);
@@ -49,37 +49,30 @@ export function Dashboard() {
 
   // Set up real-time subscriptions for automatic feed updates
   useEffect(() => {
-    let updateTimeout: NodeJS.Timeout;
-
-    const triggerFeedUpdate = () => {
-      // Debounce updates to prevent too many rapid refreshes
-      clearTimeout(updateTimeout);
-      updateTimeout = setTimeout(() => {
-        setFeedKey(prev => prev + 1);
-      }, 500);
-    };
-
     const postsChannel = supabase
       .channel('dashboard-posts-realtime')
       .on('postgres_changes', 
         { event: 'INSERT', schema: 'public', table: 'posts' }, 
         (payload) => {
           console.log('New post detected:', payload);
-          triggerFeedUpdate();
+          // Trigger feed refresh
+          setRefreshTrigger(prev => prev + 1);
         }
       )
       .on('postgres_changes', 
         { event: 'UPDATE', schema: 'public', table: 'posts' }, 
         (payload) => {
           console.log('Post updated:', payload);
-          triggerFeedUpdate();
+          // Trigger feed refresh
+          setRefreshTrigger(prev => prev + 1);
         }
       )
       .on('postgres_changes', 
         { event: 'DELETE', schema: 'public', table: 'posts' }, 
         (payload) => {
           console.log('Post deleted:', payload);
-          triggerFeedUpdate();
+          // Trigger feed refresh
+          setRefreshTrigger(prev => prev + 1);
         }
       )
       .subscribe();
@@ -90,7 +83,8 @@ export function Dashboard() {
         { event: '*', schema: 'public', table: 'likes' }, 
         (payload) => {
           console.log('Like activity detected:', payload);
-          triggerFeedUpdate();
+          // Trigger feed refresh
+          setRefreshTrigger(prev => prev + 1);
         }
       )
       .subscribe();
@@ -101,13 +95,13 @@ export function Dashboard() {
         { event: '*', schema: 'public', table: 'comments' }, 
         (payload) => {
           console.log('Comment activity detected:', payload);
-          triggerFeedUpdate();
+          // Trigger feed refresh
+          setRefreshTrigger(prev => prev + 1);
         }
       )
       .subscribe();
 
     return () => {
-      clearTimeout(updateTimeout);
       supabase.removeChannel(postsChannel);
       supabase.removeChannel(likesChannel);
       supabase.removeChannel(commentsChannel);
@@ -199,19 +193,16 @@ export function Dashboard() {
 
       if (error) throw error;
 
-      // Clear form immediately without page reload
       setPostContent('');
       removeImage();
       
-      // Show success message
+      // Trigger immediate feed refresh
+      setRefreshTrigger(prev => prev + 1);
+      
       toast({
         title: 'Success',
         description: 'Your post has been shared!'
       });
-
-      // The real-time subscription will automatically update the feed
-      // No manual refresh needed!
-      
     } catch (error) {
       console.error('Error creating post:', error);
       toast({
@@ -309,8 +300,8 @@ export function Dashboard() {
             </CardContent>
           </Card>
           
-          {/* Feed with real-time updates */}
-          <CommunityFeed key={feedKey} />
+          {/* Feed with refresh trigger */}
+          <CommunityFeed key={refreshTrigger} />
         </ScrollArea>
       </div>
     </DashboardLayout>
