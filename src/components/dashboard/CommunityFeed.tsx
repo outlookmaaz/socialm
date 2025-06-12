@@ -82,6 +82,7 @@ export function CommunityFeed() {
   const [showCommentBox, setShowCommentBox] = useState<{ [key: string]: boolean }>({});
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [showUserDialog, setShowUserDialog] = useState(false);
+  const [lastFetchTime, setLastFetchTime] = useState<number>(Date.now());
   const feedRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const { toast } = useToast();
@@ -134,8 +135,10 @@ export function CommunityFeed() {
     }
   };
 
-  const fetchPosts = useCallback(async () => {
+  const fetchPosts = useCallback(async (showLoadingState = true) => {
     try {
+      if (showLoadingState) setLoading(true);
+
       const { data, error } = await supabase
         .from('posts')
         .select(`
@@ -177,15 +180,18 @@ export function CommunityFeed() {
       })) || [];
 
       setPosts(formattedPosts);
+      setLastFetchTime(Date.now());
     } catch (error) {
       console.error('Error fetching posts:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to load posts'
-      });
+      if (showLoadingState) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to load posts'
+        });
+      }
     } finally {
-      setLoading(false);
+      if (showLoadingState) setLoading(false);
     }
   }, [toast]);
 
@@ -410,12 +416,23 @@ export function CommunityFeed() {
     getCurrentUser();
     fetchPosts();
 
-    // Set up real-time subscriptions
+    // Set up periodic refresh for real-time updates (alternative method)
+    const refreshInterval = setInterval(() => {
+      // Only refresh if the last fetch was more than 10 seconds ago
+      if (Date.now() - lastFetchTime > 10000) {
+        fetchPosts(false); // Silent refresh
+      }
+    }, 15000); // Check every 15 seconds
+
+    // Set up real-time subscriptions as backup
     const postsChannel = supabase
       .channel('posts-realtime')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'posts' }, 
-        () => fetchPosts()
+        () => {
+          // Debounced refresh to avoid too many calls
+          setTimeout(() => fetchPosts(false), 1000);
+        }
       )
       .subscribe();
 
@@ -423,7 +440,10 @@ export function CommunityFeed() {
       .channel('likes-realtime')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'likes' }, 
-        () => fetchPosts()
+        () => {
+          // Debounced refresh
+          setTimeout(() => fetchPosts(false), 1000);
+        }
       )
       .subscribe();
 
@@ -431,16 +451,20 @@ export function CommunityFeed() {
       .channel('comments-realtime')
       .on('postgres_changes', 
         { event: '*', schema: 'public', table: 'comments' }, 
-        () => fetchPosts()
+        () => {
+          // Debounced refresh
+          setTimeout(() => fetchPosts(false), 1000);
+        }
       )
       .subscribe();
 
     return () => {
+      clearInterval(refreshInterval);
       supabase.removeChannel(postsChannel);
       supabase.removeChannel(likesChannel);
       supabase.removeChannel(commentsChannel);
     };
-  }, [getCurrentUser, fetchPosts]);
+  }, [getCurrentUser, fetchPosts, lastFetchTime]);
 
   useEffect(() => {
     const feedElement = feedRef.current;

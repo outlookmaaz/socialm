@@ -18,7 +18,9 @@ import {
   X,
   Wifi,
   WifiOff,
-  UserX
+  UserX,
+  Settings,
+  Wrench
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -101,8 +103,8 @@ export function Notifications() {
       const sampleNotifications = [
         {
           user_id: userId,
-          type: 'like',
-          content: 'Owais liked your post',
+          type: 'system',
+          content: 'We are improving notification functionality with real-time updates and better performance!',
           read: false
         },
         {
@@ -313,6 +315,8 @@ export function Notifications() {
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
+      case 'system':
+        return <Wrench className="h-4 w-4 text-social-blue" />;
       case 'friend_request':
         return <UserPlus className="h-4 w-4 text-social-blue" />;
       case 'friend_accepted':
@@ -332,6 +336,8 @@ export function Notifications() {
 
   const getNotificationColor = (type: string) => {
     switch (type) {
+      case 'system':
+        return 'border-l-social-blue bg-social-blue/5';
       case 'friend_request':
         return 'border-l-social-blue bg-social-blue/5';
       case 'friend_accepted':
@@ -568,6 +574,11 @@ export function Notifications() {
                               New
                             </Badge>
                           )}
+                          {notification.type === 'system' && (
+                            <Badge variant="outline" className="h-4 px-1 text-xs font-pixelated border-social-blue text-social-blue">
+                              System
+                            </Badge>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
@@ -635,6 +646,13 @@ export function Notifications() {
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-3">
+                <div className="flex items-center gap-3 p-3 bg-social-blue/10 rounded-lg">
+                  <Wrench className="h-4 w-4 text-social-blue" />
+                  <div>
+                    <p className="font-pixelated text-xs font-medium">System Updates</p>
+                    <p className="font-pixelated text-xs text-muted-foreground">Important app improvements and features</p>
+                  </div>
+                </div>
                 <div className="flex items-center gap-3 p-3 bg-social-green/10 rounded-lg">
                   <MessageSquare className="h-4 w-4 text-social-green" />
                   <div>
