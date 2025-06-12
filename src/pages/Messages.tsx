@@ -605,7 +605,7 @@ export function Messages() {
                               ) : friend.lastMessageContent ? (
                                 truncateMessage(friend.lastMessageContent)
                               ) : (
-                                `@${friend.username}`
+                                `Start chatting with @${friend.username}`
                               )}
                             </p>
                             
