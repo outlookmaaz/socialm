@@ -18,6 +18,7 @@ export function useEnhancedNotifications() {
   const [isGranted, setIsGranted] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [loading, setLoading] = useState(true);
   const channelsRef = useRef<any[]>([]);
   const { toast } = useToast();
 
@@ -40,6 +41,8 @@ export function useEnhancedNotifications() {
         }
       } catch (error) {
         console.error('Error initializing notifications:', error);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -59,8 +62,10 @@ export function useEnhancedNotifications() {
   }, []);
 
   // Fetch notifications from database
-  const fetchNotifications = useCallback(async (userId: string) => {
+  const fetchNotifications = useCallback(async (userId: string, showLoading = false) => {
     try {
+      if (showLoading) setLoading(true);
+
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
@@ -78,6 +83,8 @@ export function useEnhancedNotifications() {
       setUnreadCount(data?.filter(n => !n.read).length || 0);
     } catch (error) {
       console.error('Error fetching notifications:', error);
+    } finally {
+      if (showLoading) setLoading(false);
     }
   }, []);
 
@@ -485,6 +492,7 @@ export function useEnhancedNotifications() {
     unreadCount,
     isGranted,
     isOnline,
+    loading,
     markAsRead,
     markAllAsRead,
     deleteNotification,

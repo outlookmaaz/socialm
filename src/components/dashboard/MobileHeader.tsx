@@ -155,7 +155,7 @@ export function MobileHeader() {
 
   return (
     <>
-      <header className="fixed top-0 left-0 w-full z-50 bg-background/95 backdrop-blur-sm border-b border-border">
+      <header className="fixed top-0 left-0 w-full z-50 bg-background/95 backdrop-blur-sm border-b border-border animate-slide-in-top">
         <div className="container mx-auto px-3 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sheet open={open} onOpenChange={setOpen}>
@@ -164,7 +164,7 @@ export function MobileHeader() {
                   <Menu className="h-4 w-4" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-72 flex flex-col h-full animate-in slide-in-from-left-2 duration-300">
+              <SheetContent side="left" className="p-0 w-72 flex flex-col h-full animate-slide-in-left">
                 {/* Header */}
                 <div className="flex items-center justify-center p-4 border-b shrink-0 bg-gradient-to-r from-social-light-green to-social-blue">
                   <img 
@@ -178,7 +178,7 @@ export function MobileHeader() {
                 </div>
 
                 {/* User info section */}
-                <div className="p-4 border-b shrink-0">
+                <div className="p-4 border-b shrink-0 animate-fade-in">
                   <div className="flex items-center gap-3 mb-4">
                     <Avatar className="h-10 w-10">
                       {user?.avatar ? (
@@ -200,18 +200,19 @@ export function MobileHeader() {
                 <div className="p-4 flex-1">
                   <h4 className="text-sm font-pixelated mb-3">Main Navigation</h4>
                   <div className="space-y-2">
-                    {tabs.map((tab) => (
+                    {tabs.map((tab, index) => (
                       <div
                         key={tab.path}
                         onClick={() => {
                           setOpen(false);
                           handleTabClick(tab.path);
                         }}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-pixelated transition-all duration-200 hover-scale cursor-pointer ${
+                        className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-pixelated transition-all duration-200 hover-scale cursor-pointer animate-slide-in-left ${
                           isActive(tab.path) 
                             ? 'bg-social-dark-green text-white shadow-md'
                             : 'hover:bg-muted/50'
                         }`}
+                        style={{ animationDelay: `${index * 0.1}s` }}
                       >
                         {tab.icon}
                         <span>{tab.label}</span>
@@ -226,7 +227,7 @@ export function MobileHeader() {
                 </div>
 
                 {/* Footer with logout */}
-                <div className="p-4 border-t mt-auto shrink-0">
+                <div className="p-4 border-t mt-auto shrink-0 animate-fade-in">
                   <Button 
                     variant="ghost" 
                     className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10 font-pixelated hover-scale"
@@ -244,7 +245,7 @@ export function MobileHeader() {
             
             <div 
               onClick={() => handleTabClick('/dashboard')}
-              className="flex items-center gap-2 cursor-pointer"
+              className="flex items-center gap-2 cursor-pointer hover-scale"
             >
               <img 
                 src="/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png" 
@@ -279,7 +280,7 @@ export function MobileHeader() {
                 )}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 animate-in slide-in-from-top-2 duration-200">
+            <DropdownMenuContent align="end" className="w-56 animate-scale-in">
               <DropdownMenuLabel className="font-pixelated">My Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <Link to="/profile">
@@ -315,15 +316,16 @@ export function MobileHeader() {
         
         {/* Bottom Navigation - Icons Only */}
         <nav className="grid grid-cols-5 border-t bg-background">
-          {tabs.map((tab) => (
+          {tabs.map((tab, index) => (
             <div
               key={tab.path} 
               onClick={() => handleTabClick(tab.path)}
-              className={`flex flex-col items-center justify-center py-2 font-pixelated transition-all duration-200 hover-scale relative cursor-pointer ${
+              className={`flex flex-col items-center justify-center py-2 font-pixelated transition-all duration-200 hover-scale relative cursor-pointer animate-slide-in-bottom ${
                 isActive(tab.path) 
                   ? 'text-white bg-social-dark-green shadow-md' 
                   : 'text-muted-foreground hover:bg-muted/50'
               }`}
+              style={{ animationDelay: `${index * 0.1}s` }}
             >
               {tab.icon}
             </div>
@@ -333,7 +335,7 @@ export function MobileHeader() {
 
       {/* Logout Confirmation Dialog */}
       <AlertDialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
-        <AlertDialogContent className="animate-in zoom-in-95 duration-200">
+        <AlertDialogContent className="animate-scale-in">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-pixelated">Sign Out</AlertDialogTitle>
             <AlertDialogDescription className="font-pixelated">
