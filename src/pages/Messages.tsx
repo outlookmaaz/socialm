@@ -609,15 +609,23 @@ export function Messages() {
                               )}
                             </p>
                             
-                            {/* Only show unread count badge if there are actual unread messages (greater than 0) */}
-                            {friend.unreadCount && friend.unreadCount > 0 && (
-                              <Badge 
-                                variant="default" 
-                                className="ml-2 h-5 w-5 p-0 text-xs flex items-center justify-center bg-social-green text-white animate-pulse"
-                              >
-                                {friend.unreadCount > 9 ? '9+' : friend.unreadCount}
-                              </Badge>
-                            )}
+                            {/* Circle indicator - Green for unread, Grey for read messages */}
+                            <div className="ml-2 flex-shrink-0">
+                              {friend.unreadCount && friend.unreadCount > 0 ? (
+                                // Green circle with unread count for unread messages
+                                <div className="relative">
+                                  <Circle className="h-3 w-3 fill-social-green text-social-green animate-pulse" />
+                                  {friend.unreadCount > 1 && (
+                                    <span className="absolute -top-1 -right-1 bg-social-green text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-pixelated">
+                                      {friend.unreadCount > 9 ? '9+' : friend.unreadCount}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : friend.lastMessageContent ? (
+                                // Grey circle for read messages
+                                <Circle className="h-3 w-3 fill-muted-foreground text-muted-foreground opacity-50" />
+                              ) : null}
+                            </div>
                           </div>
                         </div>
                         
