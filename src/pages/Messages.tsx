@@ -679,13 +679,13 @@ export function Messages() {
                   )}
                 </div>
 
-                {/* Messages Area - Scrollable with proper height */}
-                <div className="flex-1 overflow-hidden">
+                {/* Messages Area - Fixed height calculation */}
+                <div className="flex-1 min-h-0 flex flex-col">
                   <ScrollArea 
                     ref={messagesContainerRef}
-                    className="h-full"
+                    className="flex-1"
                   >
-                    <div className="p-3 space-y-2 min-h-full">
+                    <div className="p-3 space-y-2">
                       {selectedFriend.isBlocked && (
                         <div className="text-center py-4">
                           <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 max-w-md mx-auto">
@@ -779,45 +779,45 @@ export function Messages() {
                       <div ref={messagesEndRef} className="h-1" />
                     </div>
                   </ScrollArea>
-                </div>
 
-                {/* Message Input */}
-                <div className="p-3 border-t bg-background flex-shrink-0">
-                  {selectedFriend.isBlocked ? (
-                    <div className="text-center py-2">
-                      <p className="font-pixelated text-xs text-muted-foreground">
-                        You cannot send messages to this user
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex gap-2">
-                        <Textarea 
-                          placeholder="Type a message..." 
-                          value={newMessage}
-                          onChange={(e) => setNewMessage(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault();
-                              sendMessage();
-                            }
-                          }}
-                          className="min-h-[40px] max-h-[100px] resize-none flex-1 font-pixelated text-xs"
-                          disabled={sendingMessage || selectedFriend.isBlocked}
-                        />
-                        <Button
-                          onClick={sendMessage}
-                          disabled={!newMessage.trim() || sendingMessage || selectedFriend.isBlocked}
-                          className="bg-primary hover:bg-primary/90 flex-shrink-0 h-10 w-10"
-                        >
-                          <Send className="h-4 w-4" />
-                        </Button>
+                  {/* Message Input - Fixed at bottom with proper spacing */}
+                  <div className="border-t bg-background p-3 flex-shrink-0">
+                    {selectedFriend.isBlocked ? (
+                      <div className="text-center py-2">
+                        <p className="font-pixelated text-xs text-muted-foreground">
+                          You cannot send messages to this user
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1 font-pixelated">
-                        Press Enter to send, Shift + Enter for new line
-                      </p>
-                    </>
-                  )}
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <Textarea 
+                            placeholder="Type a message..." 
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                sendMessage();
+                              }
+                            }}
+                            className="min-h-[44px] max-h-[100px] resize-none flex-1 font-pixelated text-xs"
+                            disabled={sendingMessage || selectedFriend.isBlocked}
+                          />
+                          <Button
+                            onClick={sendMessage}
+                            disabled={!newMessage.trim() || sendingMessage || selectedFriend.isBlocked}
+                            className="bg-primary hover:bg-primary/90 flex-shrink-0 h-11 w-11"
+                          >
+                            <Send className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground font-pixelated">
+                          Press Enter to send, Shift + Enter for new line
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </>
             ) : (
