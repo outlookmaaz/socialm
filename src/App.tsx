@@ -41,28 +41,23 @@ const App = () => {
   const { theme, colorTheme, setTheme, setColorTheme } = useTheme();
   
   useEffect(() => {
-    // Apply theme immediately on mount with smooth transitions
+    // Apply theme immediately on mount
     const root = window.document.documentElement;
-    root.style.transition = 'all 0.3s ease-in-out';
     root.classList.remove('light', 'dark', 'win95');
     root.classList.add(theme);
 
-    // Apply color theme with smooth transitions
+    // Apply color theme
     root.classList.remove('theme-green', 'theme-blue', 'theme-red', 'theme-orange', 'theme-purple');
     if (colorTheme !== 'green') {
       root.classList.add(`theme-${colorTheme}`);
     }
 
-    // Set favicon and title with smooth updates
     const faviconLink = document.querySelector("link[rel*='icon']") || document.createElement('link');
     faviconLink.setAttribute('rel', 'shortcut icon');
     faviconLink.setAttribute('href', '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png');
     document.head.appendChild(faviconLink);
     
     document.title = "SocialChat - Connect with Friends";
-
-    // Add smooth scrolling to body
-    document.body.style.scrollBehavior = 'smooth';
   }, [theme, colorTheme, setTheme, setColorTheme]);
   
   useEffect(() => {
@@ -91,11 +86,11 @@ const App = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       console.log('Initial session check:', session?.user?.id);
       setSession(session);
-      // Add a smooth loading animation
+      // Add a small delay to show the loading animation
       setTimeout(() => setLoading(false), 1500);
     });
 
-    // Request notification permission on app load with smooth UX
+    // Request notification permission on app load
     if ('serviceWorker' in navigator && 'PushManager' in window) {
       try {
         Notification.requestPermission().then(permission => {
@@ -121,76 +116,74 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <div className="app-container">
-            <Routes>
-              {/* Public Routes */}
-              <Route 
-                path="/" 
-                element={session ? <Navigate to="/dashboard" replace /> : <Index />} 
-              />
-              <Route 
-                path="/login" 
-                element={session ? <Navigate to="/dashboard" replace /> : <Login />} 
-              />
-              <Route 
-                path="/register" 
-                element={session ? <Navigate to="/dashboard" replace /> : <Register />} 
-              />
-              
-              {/* Protected Routes */}
-              <Route 
-                path="/dashboard" 
-                element={
-                  <AuthGuard>
-                    <Dashboard />
-                  </AuthGuard>
-                } 
-              />
-              <Route 
-                path="/friends" 
-                element={
-                  <AuthGuard>
-                    <Friends />
-                  </AuthGuard>
-                } 
-              />
-              <Route 
-                path="/messages" 
-                element={
-                  <AuthGuard>
-                    <Messages />
-                  </AuthGuard>
-                } 
-              />
-              <Route 
-                path="/notifications" 
-                element={
-                  <AuthGuard>
-                    <Notifications />
-                  </AuthGuard>
-                } 
-              />
-              <Route 
-                path="/profile" 
-                element={
-                  <AuthGuard>
-                    <Profile />
-                  </AuthGuard>
-                } 
-              />
-              <Route 
-                path="/settings" 
-                element={
-                  <AuthGuard>
-                    <Settings />
-                  </AuthGuard>
-                } 
-              />
-              
-              {/* 404 Route */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </div>
+          <Routes>
+            {/* Public Routes */}
+            <Route 
+              path="/" 
+              element={session ? <Navigate to="/dashboard" replace /> : <Index />} 
+            />
+            <Route 
+              path="/login" 
+              element={session ? <Navigate to="/dashboard" replace /> : <Login />} 
+            />
+            <Route 
+              path="/register" 
+              element={session ? <Navigate to="/dashboard" replace /> : <Register />} 
+            />
+            
+            {/* Protected Routes */}
+            <Route 
+              path="/dashboard" 
+              element={
+                <AuthGuard>
+                  <Dashboard />
+                </AuthGuard>
+              } 
+            />
+            <Route 
+              path="/friends" 
+              element={
+                <AuthGuard>
+                  <Friends />
+                </AuthGuard>
+              } 
+            />
+            <Route 
+              path="/messages" 
+              element={
+                <AuthGuard>
+                  <Messages />
+                </AuthGuard>
+              } 
+            />
+            <Route 
+              path="/notifications" 
+              element={
+                <AuthGuard>
+                  <Notifications />
+                </AuthGuard>
+              } 
+            />
+            <Route 
+              path="/profile" 
+              element={
+                <AuthGuard>
+                  <Profile />
+                </AuthGuard>
+              } 
+            />
+            <Route 
+              path="/settings" 
+              element={
+                <AuthGuard>
+                  <Settings />
+                </AuthGuard>
+              } 
+            />
+            
+            {/* 404 Route */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>

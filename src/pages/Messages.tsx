@@ -529,18 +529,18 @@ export function Messages() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-6xl mx-auto h-[calc(100vh-60px)] bg-background rounded-lg shadow-lg overflow-hidden animate-fade-in">
+      <div className="max-w-6xl mx-auto h-[calc(100vh-60px)] bg-background rounded-lg shadow-lg overflow-hidden">
         <div className="flex h-full">
           {/* Friends List */}
           <div className={`w-full md:w-80 border-r flex flex-col ${selectedFriend ? 'hidden md:flex' : ''}`}>
             {/* Friends List Header */}
-            <div className="p-3 border-b bg-muted/30 flex-shrink-0 animate-slide-in-top">
+            <div className="p-3 border-b bg-muted/30 flex-shrink-0">
               <h2 className="font-pixelated text-sm font-medium">Messages</h2>
             </div>
 
             {/* Friends List - Scrollable */}
             <div className="flex-1 overflow-hidden">
-              <ScrollArea className="h-full scroll-container">
+              <ScrollArea className="h-full">
                 {loading ? (
                   <div className="space-y-2 p-3">
                     {[1, 2, 3].map(i => (
@@ -555,21 +555,20 @@ export function Messages() {
                   </div>
                 ) : friends.length > 0 ? (
                   <div className="p-2">
-                    {friends.map((friend, index) => (
+                    {friends.map(friend => (
                       <div
                         key={friend.id}
                         onClick={() => {
                           setSelectedFriend(friend);
                           fetchMessages(friend.id);
                         }}
-                        className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-accent/50 relative animate-slide-in-left ${
+                        className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-accent/50 relative ${
                           selectedFriend?.id === friend.id 
                             ? 'bg-accent shadow-md' 
                             : ''
                         } ${friend.isBlocked ? 'opacity-50' : ''} ${
                           friend.unreadCount && friend.unreadCount > 0 ? 'bg-social-green/5 border-l-4 border-social-green' : ''
                         }`}
-                        style={{ animationDelay: `${index * 0.1}s` }}
                       >
                         <Avatar className="h-10 w-10 border-2 border-background flex-shrink-0">
                           {friend.avatar ? (
@@ -613,8 +612,15 @@ export function Messages() {
                             {/* Circle indicator - Green for unread, Grey for read messages */}
                             <div className="ml-2 flex-shrink-0">
                               {friend.unreadCount && friend.unreadCount > 0 ? (
-                                // Green circle for unread messages
-                                <Circle className="h-3 w-3 fill-social-green text-social-green animate-pulse" />
+                                // Green circle with unread count for unread messages
+                                <div className="relative">
+                                  <Circle className="h-3 w-3 fill-social-green text-social-green animate-pulse" />
+                                  {friend.unreadCount > 1 && (
+                                    <span className="absolute -top-1 -right-1 bg-social-green text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-pixelated">
+                                      {friend.unreadCount > 9 ? '9+' : friend.unreadCount}
+                                    </span>
+                                  )}
+                                </div>
                               ) : friend.lastMessageContent ? (
                                 // Grey circle for read messages
                                 <Circle className="h-3 w-3 fill-muted-foreground text-muted-foreground opacity-50" />
@@ -630,10 +636,10 @@ export function Messages() {
                     ))}
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center h-full p-6 text-center animate-fade-in">
+                  <div className="flex flex-col items-center justify-center h-full p-6 text-center">
                     <User className="h-12 w-12 text-muted-foreground mb-4" />
                     <p className="text-muted-foreground mb-4 font-pixelated text-sm">No friends yet</p>
-                    <Button variant="outline" asChild className="font-pixelated text-xs hover-scale">
+                    <Button variant="outline" asChild className="font-pixelated text-xs">
                       <a href="/friends">Find Friends</a>
                     </Button>
                   </div>
@@ -647,12 +653,12 @@ export function Messages() {
             {selectedFriend ? (
               <>
                 {/* Chat Header */}
-                <div className="flex items-center gap-3 p-3 border-b bg-muted/30 flex-shrink-0 animate-slide-in-top">
+                <div className="flex items-center gap-3 p-3 border-b bg-muted/30 flex-shrink-0">
                   <Button 
                     variant="ghost" 
                     size="icon" 
                     onClick={() => setSelectedFriend(null)}
-                    className="md:hidden flex-shrink-0 h-8 w-8 hover-scale"
+                    className="md:hidden flex-shrink-0 h-8 w-8"
                   >
                     <ArrowLeft className="h-4 w-4" />
                   </Button>
@@ -687,11 +693,11 @@ export function Messages() {
                   <div className="flex-1 overflow-hidden">
                     <ScrollArea 
                       ref={messagesContainerRef}
-                      className="h-full scroll-container"
+                      className="h-full"
                     >
                       <div className="p-3 space-y-2">
                         {selectedFriend.isBlocked && (
-                          <div className="text-center py-4 animate-fade-in">
+                          <div className="text-center py-4">
                             <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 max-w-md mx-auto">
                               <UserX className="h-6 w-6 text-destructive mx-auto mb-2" />
                               <p className="font-pixelated text-xs text-destructive font-medium">
@@ -706,7 +712,7 @@ export function Messages() {
                         
                         {/* Show "Start chatting" message when no messages exist */}
                         {messageGroups.length === 0 && !selectedFriend.isBlocked && (
-                          <div className="text-center py-8 animate-fade-in">
+                          <div className="text-center py-8">
                             <div className="bg-muted/30 border border-muted rounded-lg p-6 max-w-md mx-auto">
                               <Heart className="h-8 w-8 text-social-green mx-auto mb-3" />
                               <p className="font-pixelated text-sm font-medium text-foreground mb-2">
@@ -720,7 +726,7 @@ export function Messages() {
                         )}
                         
                         {messageGroups.map((group, groupIndex) => (
-                          <div key={groupIndex} className="space-y-2 animate-fade-in" style={{ animationDelay: `${groupIndex * 0.1}s` }}>
+                          <div key={groupIndex} className="space-y-2">
                             {/* Date Separator */}
                             <div className="flex items-center justify-center py-1">
                               <div className="bg-muted px-2 py-1 rounded-full">
@@ -731,11 +737,10 @@ export function Messages() {
                             </div>
                             
                             {/* Messages for this date */}
-                            {group.messages.map((message, messageIndex) => (
+                            {group.messages.map((message) => (
                               <div 
                                 key={message.id}
-                                className={`flex gap-2 animate-slide-in-bottom ${message.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'}`}
-                                style={{ animationDelay: `${messageIndex * 0.05}s` }}
+                                className={`flex gap-2 ${message.sender_id === currentUser?.id ? 'justify-end' : 'justify-start'}`}
                               >
                                 <div className={`flex gap-2 max-w-[75%] ${message.sender_id === currentUser?.id ? 'flex-row-reverse' : ''}`}>
                                   <Avatar className="h-6 w-6 mt-1 flex-shrink-0">
@@ -748,7 +753,7 @@ export function Messages() {
                                     )}
                                   </Avatar>
                                   <div 
-                                    className={`p-2 rounded-lg relative transition-all duration-200 hover-scale ${
+                                    className={`p-2 rounded-lg relative ${
                                       message.sender_id === currentUser?.id 
                                         ? 'bg-primary text-primary-foreground' 
                                         : 'bg-muted'
@@ -786,8 +791,8 @@ export function Messages() {
                     </ScrollArea>
                   </div>
 
-                  {/* Message Input - Fixed at bottom with better visibility */}
-                  <div className="border-t bg-background flex-shrink-0 animate-slide-in-bottom">
+                  {/* Message Input - Fixed at bottom with proper spacing and visibility */}
+                  <div className="border-t bg-background flex-shrink-0">
                     {selectedFriend.isBlocked ? (
                       <div className="text-center py-4">
                         <p className="font-pixelated text-xs text-muted-foreground">
@@ -795,7 +800,7 @@ export function Messages() {
                         </p>
                       </div>
                     ) : (
-                      <div className="p-3 space-y-2">
+                      <div className="p-4 space-y-2">
                         <div className="flex gap-2 items-end">
                           <Textarea 
                             placeholder="Type a message..." 
@@ -807,18 +812,18 @@ export function Messages() {
                                 sendMessage();
                               }
                             }}
-                            className="min-h-[48px] max-h-[120px] resize-none flex-1 font-pixelated text-xs transition-all duration-200 focus:ring-2 focus:ring-social-green"
+                            className="min-h-[48px] max-h-[120px] resize-none flex-1 font-pixelated text-xs"
                             disabled={sendingMessage || selectedFriend.isBlocked}
                           />
                           <Button
                             onClick={sendMessage}
                             disabled={!newMessage.trim() || sendingMessage || selectedFriend.isBlocked}
-                            className="bg-primary hover:bg-primary/90 flex-shrink-0 h-12 w-12 hover-scale"
+                            className="bg-primary hover:bg-primary/90 flex-shrink-0 h-12 w-12"
                           >
                             <Send className="h-4 w-4" />
                           </Button>
                         </div>
-                        <p className="text-xs text-muted-foreground font-pixelated text-center">
+                        <p className="text-xs text-muted-foreground font-pixelated">
                           Press Enter to send, Shift + Enter for new line
                         </p>
                       </div>
@@ -827,7 +832,7 @@ export function Messages() {
                 </div>
               </>
             ) : (
-              <div className="flex flex-col items-center justify-center h-full p-6 text-center animate-fade-in">
+              <div className="flex flex-col items-center justify-center h-full p-6 text-center">
                 <MessageSquare className="h-16 w-16 text-muted-foreground mb-4" />
                 <h2 className="text-lg font-semibold mb-2 font-pixelated">Your Messages</h2>
                 <p className="text-muted-foreground font-pixelated text-sm">
