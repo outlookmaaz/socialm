@@ -53,6 +53,96 @@ export function Messages() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
+  // INVISIBLE background fetch for friends - NO loading indicators
+  const fetchFriendsInBackground = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) return;
+
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('name, avatar')
+        .eq('id', user.id)
+        .single();
+
+      if (userProfile) {
+        setCurrentUser({
+          id: user.id,
+          name: userProfile.name || 'User',
+          avatar: userProfile.avatar || ''
+        });
+      }
+
+      const { data: friendsData, error } = await supabase
+        .from('friends')
+        .select('id, sender_id, receiver_id, status')
+        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+        .eq('status', 'accepted');
+        
+      if (error) throw error;
+      
+      const formattedFriends: Friend[] = [];
+      
+      if (friendsData) {
+        for (const friend of friendsData) {
+          const isSender = friend.sender_id === user.id;
+          const friendId = isSender ? friend.receiver_id : friend.sender_id;
+          
+          const { data: friendProfile } = await supabase
+            .from('profiles')
+            .select('id, name, username, avatar')
+            .eq('id', friendId)
+            .single();
+          
+          if (friendProfile && friendProfile.id) {
+            // Get last message and unread count for this friend
+            const { data: lastMessage } = await supabase
+              .from('messages')
+              .select('content, created_at, sender_id, read')
+              .or(`and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .single();
+
+            // Get unread count (messages sent to current user that are unread)
+            const { count: unreadCount } = await supabase
+              .from('messages')
+              .select('*', { count: 'exact', head: true })
+              .eq('sender_id', friendId)
+              .eq('receiver_id', user.id)
+              .eq('read', false);
+
+            formattedFriends.push({
+              id: friendProfile.id,
+              name: friendProfile.name || 'User',
+              username: friendProfile.username || 'guest',
+              avatar: friendProfile.avatar || '',
+              isBlocked: false,
+              lastMessageTime: lastMessage?.created_at || friend.created_at,
+              lastMessageContent: lastMessage?.content || '',
+              unreadCount: unreadCount || 0
+            });
+          }
+        }
+      }
+
+      // Sort friends by last activity (most recent first)
+      formattedFriends.sort((a, b) => {
+        const timeA = new Date(a.lastMessageTime || 0).getTime();
+        const timeB = new Date(b.lastMessageTime || 0).getTime();
+        return timeB - timeA;
+      });
+
+      // SEAMLESSLY update friends list without any loading indicators
+      setFriends(formattedFriends);
+    } catch (error) {
+      console.error('Background friends fetch error:', error);
+      // CRITICAL: Don't show error toast for background updates
+    }
+  };
+
+  // Initial fetch with loading (only on first load)
   const fetchFriends = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -187,6 +277,74 @@ export function Messages() {
     }));
   };
 
+  // INVISIBLE background fetch for messages - NO loading indicators
+  const fetchMessagesInBackground = async (friendId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) return;
+
+      // Check if still friends before loading messages
+      const stillFriends = await checkIfFriendsStillConnected(friendId);
+      
+      if (!stillFriends) {
+        console.log('No longer friends, marking as blocked');
+        // Update friend status to blocked
+        setFriends(prev => 
+          prev.map(f => 
+            f.id === friendId ? { ...f, isBlocked: true } : f
+          )
+        );
+        
+        // If this friend is currently selected, show blocked message
+        if (selectedFriend?.id === friendId) {
+          setSelectedFriend(prev => prev ? { ...prev, isBlocked: true } : null);
+        }
+        return;
+      }
+
+      const { data: messagesData, error } = await supabase
+        .from('messages')
+        .select(`
+          id,
+          sender_id,
+          receiver_id,
+          content,
+          created_at,
+          read,
+          profiles!messages_sender_id_fkey(name, avatar)
+        `)
+        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`)
+        .order('created_at');
+        
+      if (error) throw error;
+
+      const formattedMessages: Message[] = messagesData.map((message: any) => ({
+        id: message.id,
+        sender_id: message.sender_id,
+        receiver_id: message.receiver_id,
+        content: message.content,
+        created_at: message.created_at,
+        read: message.read,
+        sender: {
+          name: message.profiles?.name || 'Unknown',
+          avatar: message.profiles?.avatar || ''
+        }
+      }));
+
+      // SEAMLESSLY update messages without any loading indicators
+      setMessages(formattedMessages);
+      setMessageGroups(groupMessagesByDate(formattedMessages));
+      
+      // Mark messages as read when opening conversation
+      await markMessagesAsRead(friendId);
+    } catch (error) {
+      console.error('Background messages fetch error:', error);
+      // CRITICAL: Don't show error toast for background updates
+    }
+  };
+
+  // Initial fetch with loading (only on first load)
   const fetchMessages = async (friendId: string) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -415,17 +573,42 @@ export function Messages() {
   useEffect(() => {
     fetchFriends();
     
-    const friendsInterval = setInterval(() => {
-      fetchFriends();
-    }, 30000);
+    // Set up REAL-TIME subscriptions for INSTANT background updates
+    const friendsChannel = supabase
+      .channel('friends-realtime-updates')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'friends' }, 
+        (payload) => {
+          console.log('Friends change detected:', payload);
+          // Use INVISIBLE background fetch - user sees NO loading indicators
+          fetchFriendsInBackground();
+        }
+      )
+      .subscribe();
 
-    return () => clearInterval(friendsInterval);
+    const messagesChannel = supabase
+      .channel('messages-realtime-updates')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'messages' }, 
+        (payload) => {
+          console.log('Message change detected:', payload);
+          // Use INVISIBLE background fetch - user sees NO loading indicators
+          fetchFriendsInBackground();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(friendsChannel);
+      supabase.removeChannel(messagesChannel);
+    };
   }, []);
 
   useEffect(() => {
     if (selectedFriend && currentUser) {
       fetchMessages(selectedFriend.id);
       
+      // Set up REAL-TIME subscriptions for INSTANT message updates
       const channel = supabase
         .channel(`messages-${selectedFriend.id}-${currentUser.id}`)
         .on('postgres_changes', 
@@ -474,7 +657,8 @@ export function Messages() {
                 }
               }
             } else if (payload.eventType === 'UPDATE' || payload.eventType === 'DELETE') {
-              fetchMessages(selectedFriend.id);
+              // Use INVISIBLE background fetch for updates/deletes
+              fetchMessagesInBackground(selectedFriend.id);
             }
           }
         )
@@ -508,14 +692,9 @@ export function Messages() {
         )
         .subscribe();
 
-      const messageInterval = setInterval(() => {
-        fetchMessages(selectedFriend.id);
-      }, 10000);
-
       return () => {
         supabase.removeChannel(channel);
         supabase.removeChannel(friendsChannel);
-        clearInterval(messageInterval);
       };
     }
   }, [selectedFriend, currentUser]);
