@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { LoadingScreen } from "@/components/ui/loading-screen";
 import { useTheme } from "@/hooks/use-theme";
+import { PushAlertManager } from "@/components/notifications/PushAlertManager";
 
 // Pages
 import Index from "./pages/Index";
@@ -115,6 +116,8 @@ const App = () => {
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        {/* PushAlert Manager - Only initialize when user is authenticated */}
+        {session && <PushAlertManager />}
         <BrowserRouter>
           <Routes>
             {/* Public Routes */}
