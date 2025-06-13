@@ -130,7 +130,8 @@
 @layer base {
   * {
     @apply border-border;
-    /* Strict zoom prevention */
+    /* Enhanced smooth scrolling */
+    scroll-behavior: smooth;
     touch-action: manipulation;
     -webkit-touch-callout: none;
     -webkit-text-size-adjust: 100%;
@@ -146,6 +147,9 @@
     position: fixed;
     height: 100vh;
     font-size: 14px;
+    /* Enhanced scrolling */
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
     /* Additional zoom prevention */
     -webkit-user-select: none;
     -moz-user-select: none;
@@ -218,6 +222,9 @@
     height: 100vh;
     overflow: hidden;
     font-size: 11px;
+    /* Enhanced mobile scrolling */
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
     /* Strict mobile zoom prevention */
     touch-action: manipulation;
     -webkit-touch-callout: none;
@@ -393,14 +400,15 @@ textarea, input {
   overflow-wrap: break-word;
 }
 
-/* Enhanced scrollbar visibility */
+/* Enhanced scrollbar visibility with smooth scrolling */
 .scroll-container {
   overflow-y: auto;
   overflow-x: hidden;
+  scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
 }
 
-/* Visible scrollbar with theme colors */
+/* Enhanced scrollbar with theme colors */
 .scroll-container::-webkit-scrollbar {
   width: 8px;
 }
@@ -414,11 +422,18 @@ textarea, input {
   background: hsl(var(--social-green));
   border-radius: 4px;
   opacity: 0.7;
+  transition: all 0.2s ease;
 }
 
 .scroll-container::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--social-light-green));
   opacity: 1;
+}
+
+/* Enhanced smooth scrolling for all scroll areas */
+.scroll-smooth {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Hover effects */
@@ -428,6 +443,11 @@ textarea, input {
 
 .hover-scale:hover {
   transform: scale(1.05);
+}
+
+/* Enhanced mobile safe area support */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 /* Prevent zoom gestures */
@@ -440,4 +460,19 @@ textarea, input {
   button, a, [role="button"] {
     touch-action: manipulation !important;
   }
+}
+
+/* Enhanced grey circle for unread indicator */
+.unread-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #9ca3af;
+  opacity: 0.6;
+  transition: all 0.2s ease;
+}
+
+.unread-indicator:hover {
+  opacity: 0.8;
+  transform: scale(1.1);
 }

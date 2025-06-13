@@ -538,9 +538,9 @@ export function Messages() {
               <h2 className="font-pixelated text-sm font-medium">Messages</h2>
             </div>
 
-            {/* Friends List - Scrollable */}
+            {/* Friends List - Scrollable with smooth scrolling */}
             <div className="flex-1 overflow-hidden">
-              <ScrollArea className="h-full">
+              <ScrollArea className="h-full scroll-smooth">
                 {loading ? (
                   <div className="space-y-2 p-3">
                     {[1, 2, 3].map(i => (
@@ -609,15 +609,19 @@ export function Messages() {
                               )}
                             </p>
                             
-                            {/* Only show unread count badge if there are actual unread messages (greater than 0) */}
-                            {friend.unreadCount && friend.unreadCount > 0 && (
-                              <Badge 
-                                variant="default" 
-                                className="ml-2 h-5 w-5 p-0 text-xs flex items-center justify-center bg-social-green text-white animate-pulse"
-                              >
-                                {friend.unreadCount > 9 ? '9+' : friend.unreadCount}
-                              </Badge>
-                            )}
+                            {/* Show unread count badge or grey circle */}
+                            <div className="ml-2 flex-shrink-0">
+                              {friend.unreadCount && friend.unreadCount > 0 ? (
+                                <Badge 
+                                  variant="default" 
+                                  className="h-5 w-5 p-0 text-xs flex items-center justify-center bg-social-green text-white animate-pulse"
+                                >
+                                  {friend.unreadCount > 9 ? '9+' : friend.unreadCount}
+                                </Badge>
+                              ) : (
+                                <div className="w-2 h-2 rounded-full bg-gray-300 opacity-60"></div>
+                              )}
+                            </div>
                           </div>
                         </div>
                         
@@ -681,11 +685,11 @@ export function Messages() {
 
                 {/* Messages Area and Input - Fixed layout with proper spacing */}
                 <div className="flex-1 flex flex-col min-h-0">
-                  {/* Messages Area - Takes remaining space */}
+                  {/* Messages Area - Takes remaining space with smooth scrolling */}
                   <div className="flex-1 overflow-hidden">
                     <ScrollArea 
                       ref={messagesContainerRef}
-                      className="h-full"
+                      className="h-full scroll-smooth"
                     >
                       <div className="p-3 space-y-2">
                         {selectedFriend.isBlocked && (
@@ -783,8 +787,8 @@ export function Messages() {
                     </ScrollArea>
                   </div>
 
-                  {/* Message Input - Fixed at bottom with proper spacing and visibility */}
-                  <div className="border-t bg-background flex-shrink-0">
+                  {/* Message Input - Fixed at bottom with better spacing */}
+                  <div className="border-t bg-background flex-shrink-0 pb-safe">
                     {selectedFriend.isBlocked ? (
                       <div className="text-center py-4">
                         <p className="font-pixelated text-xs text-muted-foreground">
@@ -804,13 +808,13 @@ export function Messages() {
                                 sendMessage();
                               }
                             }}
-                            className="min-h-[48px] max-h-[120px] resize-none flex-1 font-pixelated text-xs"
+                            className="min-h-[52px] max-h-[120px] resize-none flex-1 font-pixelated text-xs"
                             disabled={sendingMessage || selectedFriend.isBlocked}
                           />
                           <Button
                             onClick={sendMessage}
                             disabled={!newMessage.trim() || sendingMessage || selectedFriend.isBlocked}
-                            className="bg-primary hover:bg-primary/90 flex-shrink-0 h-12 w-12"
+                            className="bg-primary hover:bg-primary/90 flex-shrink-0 h-[52px] w-12"
                           >
                             <Send className="h-4 w-4" />
                           </Button>
