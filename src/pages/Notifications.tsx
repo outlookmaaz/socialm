@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { OneSignalNotificationBanner } from '@/components/notifications/OneSignalNotificationBanner';
+import { useOneSignalNotifications } from '@/hooks/use-onesignal-notifications';
 import { 
   Bell, 
   Check, 
@@ -18,7 +20,8 @@ import {
   X,
   Wifi,
   WifiOff,
-  UserX
+  UserX,
+  Settings
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -50,10 +53,12 @@ export function Notifications() {
   const [loading, setLoading] = useState(true);
   const [showInfo, setShowInfo] = useState(false);
   const [showClearDialog, setShowClearDialog] = useState(false);
+  const [showNotificationBanner, setShowNotificationBanner] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const { toast } = useToast();
+  const { oneSignalUser, requestPermission, unsubscribe } = useOneSignalNotifications();
 
   const fetchNotifications = async (showLoading = true) => {
     try {
@@ -275,33 +280,11 @@ export function Notifications() {
     }
   };
 
-  const requestNotificationPermission = async () => {
-    if ('Notification' in window) {
-      try {
-        const permission = await Notification.requestPermission();
-        setNotificationPermission(permission);
-        
-        if (permission === 'granted') {
-          toast({
-            title: 'Notifications enabled',
-            description: 'You will now receive push notifications'
-          });
-          
-          // Send a test notification
-          new Notification('Notifications Enabled!', {
-            body: 'You will now receive real-time notifications',
-            icon: '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png'
-          });
-        } else {
-          toast({
-            variant: 'destructive',
-            title: 'Notifications blocked',
-            description: 'Please enable notifications in your browser settings'
-          });
-        }
-      } catch (error) {
-        console.error('Error requesting notification permission:', error);
-      }
+  const handleNotificationToggle = async () => {
+    if (oneSignalUser.subscribed) {
+      await unsubscribe();
+    } else {
+      await requestPermission();
     }
   };
 
@@ -466,6 +449,7 @@ export function Notifications() {
               <h1 className="font-pixelated text-lg font-medium">Notifications</h1>
               <p className="font-pixelated text-xs text-muted-foreground">
                 {notifications.length} total • {unreadCount} unread • {isOnline ? 'Online' : 'Offline'}
+                {oneSignalUser.subscribed && ' • Push enabled'}
               </p>
             </div>
           </div>
@@ -506,36 +490,37 @@ export function Notifications() {
           </div>
         </div>
 
-        {/* Notification Permission Banner */}
-        {notificationPermission !== 'granted' && (
-          <div className="mx-4 mt-4 p-3 bg-social-blue/10 border border-social-blue/20 rounded-lg">
+        {/* OneSignal Notification Banner */}
+        {showNotificationBanner && !oneSignalUser.subscribed && (
+          <OneSignalNotificationBanner onDismiss={() => setShowNotificationBanner(false)} />
+        )}
+
+        {/* Push Notification Status */}
+        {oneSignalUser.subscribed && (
+          <div className="mx-4 mt-4 p-3 bg-social-green/10 border border-social-green/20 rounded-lg">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Bell className="h-4 w-4 text-social-blue" />
+                <Bell className="h-4 w-4 text-social-green" />
                 <div>
-                  <p className="font-pixelated text-xs font-medium text-social-blue">Enable Push Notifications</p>
-                  <p className="font-pixelated text-xs text-muted-foreground">Get notified instantly when you receive messages or friend requests</p>
+                  <p className="font-pixelated text-xs font-medium text-social-green">Push Notifications Active</p>
+                  <p className="font-pixelated text-xs text-muted-foreground">You'll receive notifications even when SocialChat is closed</p>
                 </div>
               </div>
               <Button
-                onClick={requestNotificationPermission}
+                onClick={handleNotificationToggle}
                 size="sm"
-                className="bg-social-blue hover:bg-social-blue/90 text-white font-pixelated text-xs"
+                variant="outline"
+                className="font-pixelated text-xs"
               >
-                Enable
+                <Settings className="h-3 w-3 mr-1" />
+                Manage
               </Button>
-            </div>
-            {/* Additional improvement message */}
-            <div className="mt-2 pt-2 border-t border-social-blue/20">
-              <p className="font-pixelated text-xs text-muted-foreground">
-                💡 We're improving notification functionality with real-time updates and better performance!
-              </p>
             </div>
           </div>
         )}
 
         {/* Content */}
-        <ScrollArea className="h-[calc(100vh-140px)] p-4 scroll-container">
+        <ScrollArea className="h-[calc(100vh-140px)] p-4 scroll-container scroll-smooth">
           {notifications.length > 0 ? (
             <div className="space-y-3">
               {notifications.map((notification) => (
@@ -613,13 +598,14 @@ export function Notifications() {
               <p className="font-pixelated text-sm text-muted-foreground max-w-sm leading-relaxed">
                 You don't have any notifications right now. When you receive friend requests, messages, likes, or comments, they'll appear here.
               </p>
-              <Button
-                onClick={requestNotificationPermission}
-                className="mt-4 bg-social-green hover:bg-social-light-green text-white font-pixelated text-xs"
-                disabled={notificationPermission === 'granted'}
-              >
-                {notificationPermission === 'granted' ? 'Notifications Enabled' : 'Enable Push Notifications'}
-              </Button>
+              {!oneSignalUser.subscribed && (
+                <Button
+                  onClick={requestPermission}
+                  className="mt-4 bg-social-green hover:bg-social-light-green text-white font-pixelated text-xs"
+                >
+                  Enable Push Notifications
+                </Button>
+              )}
             </div>
           )}
         </ScrollArea>
@@ -630,7 +616,7 @@ export function Notifications() {
             <DialogHeader>
               <DialogTitle className="font-pixelated text-lg social-gradient bg-clip-text text-transparent flex items-center gap-2">
                 <Bell className="h-5 w-5" />
-                Real-time Notifications
+                Push Notifications
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
@@ -656,19 +642,14 @@ export function Notifications() {
                     <p className="font-pixelated text-xs text-muted-foreground">Interactions on your posts</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 p-3 bg-destructive/10 rounded-lg">
-                  <UserX className="h-4 w-4 text-destructive" />
-                  <div>
-                    <p className="font-pixelated text-xs font-medium">Friend Request Rejected</p>
-                    <p className="font-pixelated text-xs text-muted-foreground">When someone declines your friend request</p>
-                  </div>
-                </div>
               </div>
+              
               <div className="bg-muted/50 p-3 rounded-lg">
                 <p className="font-pixelated text-xs text-muted-foreground leading-relaxed">
-                  Enable push notifications to receive alerts even when you're on other tabs or apps!
+                  <strong>OneSignal Push Notifications:</strong> Get instant alerts on all devices and browsers, including macOS Safari!
                 </p>
               </div>
+              
               <Button 
                 onClick={() => setShowInfo(false)}
                 className="w-full bg-social-green hover:bg-social-light-green text-white font-pixelated text-xs hover-scale"

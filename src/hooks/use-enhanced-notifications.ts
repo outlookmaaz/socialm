@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useOneSignalNotifications } from '@/hooks/use-onesignal-notifications';
 
 interface NotificationData {
   id: string;
@@ -20,6 +21,7 @@ export function useEnhancedNotifications() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const channelsRef = useRef<any[]>([]);
   const { toast } = useToast();
+  const { oneSignalUser, sendNotificationToUser } = useOneSignalNotifications();
 
   // Initialize user and permissions
   useEffect(() => {
@@ -30,9 +32,9 @@ export function useEnhancedNotifications() {
         if (user) {
           setCurrentUser(user);
           
-          // Check notification permission
+          // Check notification permission (both browser and OneSignal)
           if ('Notification' in window) {
-            setIsGranted(Notification.permission === 'granted');
+            setIsGranted(Notification.permission === 'granted' || oneSignalUser.subscribed);
           }
           
           // Load initial notifications
@@ -56,7 +58,14 @@ export function useEnhancedNotifications() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [oneSignalUser.subscribed]);
+
+  // Update permission status when OneSignal status changes
+  useEffect(() => {
+    if ('Notification' in window) {
+      setIsGranted(Notification.permission === 'granted' || oneSignalUser.subscribed);
+    }
+  }, [oneSignalUser.subscribed]);
 
   // Fetch notifications from database
   const fetchNotifications = useCallback(async (userId: string) => {
@@ -102,16 +111,28 @@ export function useEnhancedNotifications() {
         .single();
 
       if (error) throw error;
+
+      // Send OneSignal notification if user is subscribed
+      if (oneSignalUser.subscribed) {
+        await sendNotificationToUser(userId, getNotificationTitle(type), content, {
+          type,
+          reference_id: referenceId
+        });
+      }
+
       return data;
     } catch (error) {
       console.error('Error creating notification:', error);
       return null;
     }
-  }, []);
+  }, [oneSignalUser.subscribed, sendNotificationToUser]);
 
-  // Send browser notification
+  // Send browser notification (fallback)
   const sendBrowserNotification = useCallback((title: string, options?: NotificationOptions) => {
-    if (!isGranted || !('Notification' in window)) return;
+    // If OneSignal is handling notifications, don't send browser notifications
+    if (oneSignalUser.subscribed) return null;
+
+    if (!isGranted || !('Notification' in window)) return null;
 
     try {
       const notification = new Notification(title, {
@@ -134,7 +155,7 @@ export function useEnhancedNotifications() {
       console.error('Error showing notification:', error);
       return null;
     }
-  }, [isGranted]);
+  }, [isGranted, oneSignalUser.subscribed]);
 
   // Mark notification as read
   const markAsRead = useCallback(async (notificationId: string) => {
@@ -237,12 +258,14 @@ export function useEnhancedNotifications() {
           setNotifications(prev => [newNotification, ...prev]);
           setUnreadCount(prev => prev + 1);
 
-          // Show browser notification
-          sendBrowserNotification(getNotificationTitle(newNotification.type), {
-            body: newNotification.content,
-            tag: newNotification.type,
-            data: { id: newNotification.id, type: newNotification.type }
-          });
+          // Show browser notification only if OneSignal is not handling it
+          if (!oneSignalUser.subscribed) {
+            sendBrowserNotification(getNotificationTitle(newNotification.type), {
+              body: newNotification.content,
+              tag: newNotification.type,
+              data: { id: newNotification.id, type: newNotification.type }
+            });
+          }
 
           // Show toast
           toast({
@@ -451,9 +474,9 @@ export function useEnhancedNotifications() {
       });
       channelsRef.current = [];
     };
-  }, [currentUser, isOnline, createNotification, sendBrowserNotification, toast]);
+  }, [currentUser, isOnline, createNotification, sendBrowserNotification, toast, oneSignalUser.subscribed]);
 
-  // Request notification permission
+  // Request notification permission (browser fallback)
   const requestPermission = useCallback(async () => {
     try {
       const permission = await Notification.requestPermission();
@@ -461,14 +484,14 @@ export function useEnhancedNotifications() {
       
       if (permission === 'granted') {
         toast({
-          title: 'Notifications enabled',
-          description: 'You will now receive real-time notifications',
+          title: 'Browser notifications enabled',
+          description: 'You will now receive browser notifications',
           duration: 3000
         });
 
         // Send test notification
         sendBrowserNotification('Notifications Enabled!', {
-          body: 'You will now receive real-time notifications',
+          body: 'You will now receive browser notifications',
           tag: 'test'
         });
       }
@@ -483,7 +506,7 @@ export function useEnhancedNotifications() {
   return {
     notifications,
     unreadCount,
-    isGranted,
+    isGranted: isGranted || oneSignalUser.subscribed,
     isOnline,
     markAsRead,
     markAllAsRead,
@@ -491,7 +514,8 @@ export function useEnhancedNotifications() {
     clearAllNotifications,
     requestPermission,
     createNotification,
-    fetchNotifications: () => currentUser && fetchNotifications(currentUser.id)
+    fetchNotifications: () => currentUser && fetchNotifications(currentUser.id),
+    oneSignalEnabled: oneSignalUser.subscribed
   };
 }
 
