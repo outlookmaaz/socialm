@@ -49,9 +49,23 @@ export function Messages() {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; avatar: string } | null>(null);
   const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
+
+  // Detect iOS devices
+  useEffect(() => {
+    const detectIOS = () => {
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isIOSDevice = /iphone|ipad|ipod/.test(userAgent) || 
+                         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      setIsIOS(isIOSDevice);
+    };
+    
+    detectIOS();
+  }, []);
 
   const fetchFriends = async () => {
     try {
@@ -619,7 +633,7 @@ export function Messages() {
                                   {friend.unreadCount > 9 ? '9+' : friend.unreadCount}
                                 </Badge>
                               ) : (
-                                <div className="w-2 h-2 rounded-full bg-gray-300 opacity-60"></div>
+                                <div className="unread-indicator"></div>
                               )}
                             </div>
                           </div>
@@ -787,8 +801,8 @@ export function Messages() {
                     </ScrollArea>
                   </div>
 
-                  {/* Message Input - Fixed at bottom with better spacing */}
-                  <div className="border-t bg-background flex-shrink-0 pb-safe">
+                  {/* Message Input - Fixed at bottom with iOS-specific improvements */}
+                  <div className={`border-t bg-background flex-shrink-0 ${isIOS ? 'pb-safe' : ''}`}>
                     {selectedFriend.isBlocked ? (
                       <div className="text-center py-4">
                         <p className="font-pixelated text-xs text-muted-foreground">
@@ -796,9 +810,10 @@ export function Messages() {
                         </p>
                       </div>
                     ) : (
-                      <div className="p-4 space-y-2">
+                      <div className={`p-3 space-y-2 ${isIOS ? 'pb-6' : ''}`}>
                         <div className="flex gap-2 items-end">
                           <Textarea 
+                            ref={textareaRef}
                             placeholder="Type a message..." 
                             value={newMessage}
                             onChange={(e) => setNewMessage(e.target.value)}
@@ -808,13 +823,26 @@ export function Messages() {
                                 sendMessage();
                               }
                             }}
-                            className="min-h-[52px] max-h-[120px] resize-none flex-1 font-pixelated text-xs"
+                            className={`min-h-[48px] max-h-[120px] resize-none flex-1 font-pixelated text-xs ${
+                              isIOS ? 'text-base' : ''
+                            }`}
                             disabled={sendingMessage || selectedFriend.isBlocked}
+                            style={isIOS ? {
+                              fontSize: '16px', // Prevents zoom on iOS
+                              WebkitAppearance: 'none',
+                              borderRadius: '8px'
+                            } : {}}
                           />
                           <Button
                             onClick={sendMessage}
                             disabled={!newMessage.trim() || sendingMessage || selectedFriend.isBlocked}
-                            className="bg-primary hover:bg-primary/90 flex-shrink-0 h-[52px] w-12"
+                            className={`bg-primary hover:bg-primary/90 flex-shrink-0 ${
+                              isIOS ? 'h-[48px] w-12 touch-manipulation' : 'h-[48px] w-12'
+                            }`}
+                            style={isIOS ? {
+                              WebkitTapHighlightColor: 'transparent',
+                              touchAction: 'manipulation'
+                            } : {}}
                           >
                             <Send className="h-4 w-4" />
                           </Button>
