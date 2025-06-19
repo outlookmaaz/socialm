@@ -149,7 +149,7 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
           });
         }
 
-        // Dispatch custom event for in-page toast notifications
+        // Dispatch custom event for in-page toast notifications (for ALL users)
         window.dispatchEvent(new CustomEvent('adminBroadcastToast', {
           detail: {
             title: notificationTitle.trim(),
@@ -191,42 +191,42 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md mx-auto animate-in zoom-in-95 duration-200">
+      <DialogContent className="max-w-sm mx-auto animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-pixelated text-lg flex items-center gap-2">
-            <Shield className="h-5 w-5 text-orange-500" />
-            Admin Push Notification Panel
+          <DialogTitle className="font-pixelated text-sm flex items-center gap-2">
+            <Shield className="h-4 w-4 text-orange-500" />
+            Admin Push Panel
           </DialogTitle>
         </DialogHeader>
 
         {!isAuthenticated ? (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <Alert>
-              <AlertTriangle className="h-4 w-4" />
+              <AlertTriangle className="h-3 w-3" />
               <AlertDescription className="font-pixelated text-xs">
-                This is a restricted admin area for sending push notifications to all users.
+                Restricted admin area for push notifications.
               </AlertDescription>
             </Alert>
 
             <Card>
-              <CardHeader>
-                <CardTitle className="font-pixelated text-sm">Admin Login</CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="font-pixelated text-xs">Admin Login</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
+              <CardContent className="space-y-3">
+                <div className="space-y-1">
                   <Label htmlFor="username" className="font-pixelated text-xs">Username</Label>
                   <Input
                     id="username"
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="font-pixelated text-xs"
+                    className="font-pixelated text-xs h-8"
                     placeholder="Enter admin username"
                     onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                   />
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <Label htmlFor="password" className="font-pixelated text-xs">Password</Label>
                   <div className="relative">
                     <Input
@@ -234,7 +234,7 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="font-pixelated text-xs pr-10"
+                      className="font-pixelated text-xs h-8 pr-8"
                       placeholder="Enter admin password"
                       onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                     />
@@ -242,13 +242,13 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      className="absolute right-0 top-0 h-8 w-8 hover:bg-transparent"
                       onClick={() => setShowPassword(!showPassword)}
                     >
                       {showPassword ? (
-                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        <EyeOff className="h-3 w-3 text-muted-foreground" />
                       ) : (
-                        <Eye className="h-4 w-4 text-muted-foreground" />
+                        <Eye className="h-3 w-3 text-muted-foreground" />
                       )}
                     </Button>
                   </div>
@@ -264,31 +264,31 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
 
                 <Button
                   onClick={handleLogin}
-                  className="w-full bg-orange-600 hover:bg-orange-700 text-white font-pixelated text-xs"
+                  className="w-full bg-orange-600 hover:bg-orange-700 text-white font-pixelated text-xs h-8"
                   disabled={!username.trim() || !password.trim()}
                 >
-                  <Shield className="h-3 w-3 mr-2" />
-                  Login as Admin
+                  <Shield className="h-3 w-3 mr-1" />
+                  Login
                 </Button>
               </CardContent>
             </Card>
 
-            <div className="bg-muted/50 p-3 rounded-lg">
+            <div className="bg-muted/50 p-2 rounded-lg">
               <p className="font-pixelated text-xs text-muted-foreground text-center">
-                Default credentials: admin / socialchat2025
+                Default: admin / socialchat2025
               </p>
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-2 bg-green-50 border border-green-200 rounded-lg">
               <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-green-600" />
+                <Shield className="h-3 w-3 text-green-600" />
                 <div>
-                  <span className="font-pixelated text-xs text-green-800">Admin Access Active</span>
+                  <span className="font-pixelated text-xs text-green-800">Admin Active</span>
                   {notificationsSent > 0 && (
                     <p className="font-pixelated text-xs text-green-600">
-                      {notificationsSent} notification{notificationsSent > 1 ? 's' : ''} sent
+                      {notificationsSent} sent
                     </p>
                   )}
                 </div>
@@ -297,7 +297,7 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
                 onClick={handleLogout}
                 size="sm"
                 variant="outline"
-                className="font-pixelated text-xs"
+                className="font-pixelated text-xs h-6"
               >
                 <LogOut className="h-3 w-3 mr-1" />
                 Logout
@@ -305,44 +305,44 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
             </div>
 
             <Card>
-              <CardHeader>
-                <CardTitle className="font-pixelated text-sm flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-orange-500" />
-                  Send Push Notification to All Users
+              <CardHeader className="pb-2">
+                <CardTitle className="font-pixelated text-xs flex items-center gap-1">
+                  <Zap className="h-3 w-3 text-orange-500" />
+                  Send to All Users
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title" className="font-pixelated text-xs">Notification Title</Label>
+              <CardContent className="space-y-3">
+                <div className="space-y-1">
+                  <Label htmlFor="title" className="font-pixelated text-xs">Title</Label>
                   <Input
                     id="title"
                     type="text"
                     value={notificationTitle}
                     onChange={(e) => setNotificationTitle(e.target.value)}
-                    className="font-pixelated text-xs"
+                    className="font-pixelated text-xs h-8"
                     placeholder="Enter notification title"
                     maxLength={50}
                   />
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-end">
                     <p className="font-pixelated text-xs text-muted-foreground">
-                      {notificationTitle.length}/50 characters
+                      {notificationTitle.length}/50
                     </p>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="message" className="font-pixelated text-xs">Notification Message</Label>
+                <div className="space-y-1">
+                  <Label htmlFor="message" className="font-pixelated text-xs">Message</Label>
                   <Textarea
                     id="message"
                     value={notificationMessage}
                     onChange={(e) => setNotificationMessage(e.target.value)}
-                    className="font-pixelated text-xs min-h-[80px]"
+                    className="font-pixelated text-xs min-h-[60px] resize-none"
                     placeholder="Enter notification message"
                     maxLength={200}
                   />
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-end">
                     <p className="font-pixelated text-xs text-muted-foreground">
-                      {notificationMessage.length}/200 characters
+                      {notificationMessage.length}/200
                     </p>
                   </div>
                 </div>
@@ -350,24 +350,24 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
                 <Button
                   onClick={handleSendNotification}
                   disabled={!notificationTitle.trim() || !notificationMessage.trim() || isSending}
-                  className="w-full bg-social-green hover:bg-social-light-green text-white font-pixelated text-xs"
+                  className="w-full bg-social-green hover:bg-social-light-green text-white font-pixelated text-xs h-8"
                 >
-                  <Send className="h-3 w-3 mr-2" />
-                  {isSending ? 'Sending Push Notification...' : 'Send Push Notification to All Users'}
+                  <Send className="h-3 w-3 mr-1" />
+                  {isSending ? 'Sending...' : 'Send Push Notification'}
                 </Button>
               </CardContent>
             </Card>
 
             <Alert>
-              <Bell className="h-4 w-4" />
+              <Bell className="h-3 w-3" />
               <AlertDescription className="font-pixelated text-xs">
-                This will send a real push notification to all users' devices, even when SocialChat is closed.
+                Sends real push notifications to all users' devices.
               </AlertDescription>
             </Alert>
 
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2">
               <p className="font-pixelated text-xs text-yellow-800">
-                <strong>Security Notice:</strong> You will be automatically logged out after 5 minutes of inactivity or when the page is refreshed.
+                <strong>Security:</strong> Auto-logout after 5 minutes or page refresh.
               </p>
             </div>
           </div>
