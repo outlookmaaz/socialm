@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
 import { LoadingScreen } from "@/components/ui/loading-screen";
 import { useTheme } from "@/hooks/use-theme";
+import { FirebaseNotificationProvider } from "@/components/notifications/FirebaseNotificationProvider";
 
 // Pages
 import Index from "./pages/Index";
@@ -90,17 +91,6 @@ const App = () => {
       setTimeout(() => setLoading(false), 1500);
     });
 
-    // Request notification permission on app load
-    if ('serviceWorker' in navigator && 'PushManager' in window) {
-      try {
-        Notification.requestPermission().then(permission => {
-          console.log('Notification permission:', permission);
-        });
-      } catch (error) {
-        console.error("Error requesting notification permission:", error);
-      }
-    }
-
     return () => {
       subscription.unsubscribe();
     };
@@ -112,80 +102,82 @@ const App = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            {/* Public Routes */}
-            <Route 
-              path="/" 
-              element={session ? <Navigate to="/dashboard" replace /> : <Index />} 
-            />
-            <Route 
-              path="/login" 
-              element={session ? <Navigate to="/dashboard" replace /> : <Login />} 
-            />
-            <Route 
-              path="/register" 
-              element={session ? <Navigate to="/dashboard" replace /> : <Register />} 
-            />
-            
-            {/* Protected Routes */}
-            <Route 
-              path="/dashboard" 
-              element={
-                <AuthGuard>
-                  <Dashboard />
-                </AuthGuard>
-              } 
-            />
-            <Route 
-              path="/friends" 
-              element={
-                <AuthGuard>
-                  <Friends />
-                </AuthGuard>
-              } 
-            />
-            <Route 
-              path="/messages" 
-              element={
-                <AuthGuard>
-                  <Messages />
-                </AuthGuard>
-              } 
-            />
-            <Route 
-              path="/notifications" 
-              element={
-                <AuthGuard>
-                  <Notifications />
-                </AuthGuard>
-              } 
-            />
-            <Route 
-              path="/profile" 
-              element={
-                <AuthGuard>
-                  <Profile />
-                </AuthGuard>
-              } 
-            />
-            <Route 
-              path="/settings" 
-              element={
-                <AuthGuard>
-                  <Settings />
-                </AuthGuard>
-              } 
-            />
-            
-            {/* 404 Route */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+      <FirebaseNotificationProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              {/* Public Routes */}
+              <Route 
+                path="/" 
+                element={session ? <Navigate to="/dashboard" replace /> : <Index />} 
+              />
+              <Route 
+                path="/login" 
+                element={session ? <Navigate to="/dashboard" replace /> : <Login />} 
+              />
+              <Route 
+                path="/register" 
+                element={session ? <Navigate to="/dashboard" replace /> : <Register />} 
+              />
+              
+              {/* Protected Routes */}
+              <Route 
+                path="/dashboard" 
+                element={
+                  <AuthGuard>
+                    <Dashboard />
+                  </AuthGuard>
+                } 
+              />
+              <Route 
+                path="/friends" 
+                element={
+                  <AuthGuard>
+                    <Friends />
+                  </AuthGuard>
+                } 
+              />
+              <Route 
+                path="/messages" 
+                element={
+                  <AuthGuard>
+                    <Messages />
+                  </AuthGuard>
+                } 
+              />
+              <Route 
+                path="/notifications" 
+                element={
+                  <AuthGuard>
+                    <Notifications />
+                  </AuthGuard>
+                } 
+              />
+              <Route 
+                path="/profile" 
+                element={
+                  <AuthGuard>
+                    <Profile />
+                  </AuthGuard>
+                } 
+              />
+              <Route 
+                path="/settings" 
+                element={
+                  <AuthGuard>
+                    <Settings />
+                  </AuthGuard>
+                } 
+              />
+              
+              {/* 404 Route */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </FirebaseNotificationProvider>
     </QueryClientProvider>
   );
 };

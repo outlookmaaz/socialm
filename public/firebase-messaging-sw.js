@@ -20,21 +20,22 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage(function(payload) {
   console.log('Received background message:', payload);
 
-  const notificationTitle = payload.notification.title || 'SocialChat';
+  const notificationTitle = payload.notification.title || 'SocialChat Admin';
   const notificationOptions = {
     body: payload.notification.body || 'You have a new notification',
     icon: '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png',
     badge: '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png',
-    tag: 'socialchat-notification',
+    tag: 'admin-broadcast',
     requireInteraction: true,
+    data: payload.data,
     actions: [
       {
         action: 'open',
         title: 'Open SocialChat'
       },
       {
-        action: 'close',
-        title: 'Close'
+        action: 'dismiss',
+        title: 'Dismiss'
       }
     ]
   };
@@ -56,24 +57,62 @@ self.addEventListener('notificationclick', function(event) {
   }
 });
 
-// Handle push events
+// Handle push events for admin broadcasts
 self.addEventListener('push', function(event) {
   console.log('Push event received:', event);
 
   if (event.data) {
     const data = event.data.json();
-    const title = data.title || 'SocialChat';
+    const title = data.title || 'SocialChat Admin';
     const options = {
       body: data.body || 'You have a new notification',
       icon: '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png',
       badge: '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png',
-      tag: 'socialchat-notification',
+      tag: 'admin-broadcast',
       requireInteraction: true,
-      data: data.data || {}
+      data: data.data || {},
+      actions: [
+        {
+          action: 'open',
+          title: 'Open SocialChat'
+        },
+        {
+          action: 'dismiss',
+          title: 'Dismiss'
+        }
+      ]
     };
 
     event.waitUntil(
       self.registration.showNotification(title, options)
     );
+  }
+});
+
+// Handle message events for real-time admin broadcasts
+self.addEventListener('message', function(event) {
+  if (event.data && event.data.type === 'ADMIN_BROADCAST') {
+    const { title, body, data } = event.data;
+    
+    const notificationOptions = {
+      body: body,
+      icon: '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png',
+      badge: '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png',
+      tag: 'admin-broadcast',
+      requireInteraction: true,
+      data: data || {},
+      actions: [
+        {
+          action: 'open',
+          title: 'Open SocialChat'
+        },
+        {
+          action: 'dismiss',
+          title: 'Dismiss'
+        }
+      ]
+    };
+
+    self.registration.showNotification(title, notificationOptions);
   }
 });

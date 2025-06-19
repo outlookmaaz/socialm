@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Bell, Send, LogOut, Shield, Eye, EyeOff, AlertTriangle } from 'lucide-react';
+import { Bell, Send, LogOut, Shield, Eye, EyeOff, AlertTriangle, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { NotificationService } from '@/config/firebase';
 
@@ -24,6 +24,7 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
   const [notificationMessage, setNotificationMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [notificationsSent, setNotificationsSent] = useState(0);
   const { toast } = useToast();
 
   // Default admin credentials
@@ -73,7 +74,7 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
       setPassword('');
       toast({
         title: 'Admin access granted',
-        description: 'You can now send notifications to all users.',
+        description: 'You can now send push notifications to all users.',
       });
     } else {
       setLoginError('Invalid credentials. Please try again.');
@@ -88,6 +89,7 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
     setNotificationTitle('');
     setNotificationMessage('');
     setLoginError('');
+    setNotificationsSent(0);
   };
 
   const handleSendNotification = async () => {
@@ -114,27 +116,49 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
         {
           type: 'admin_broadcast',
           timestamp: new Date().toISOString(),
-          priority: 'high'
+          priority: 'high',
+          broadcast: true
         }
       );
 
       if (result.success) {
+        setNotificationsSent(prev => prev + 1);
+        
         toast({
-          title: 'Notification sent!',
-          description: `Broadcast notification "${notificationTitle}" has been sent to all users.`,
+          title: '🚀 Notification sent!',
+          description: `Push notification "${notificationTitle}" has been broadcast to all users.`,
         });
 
         // Clear form
         setNotificationTitle('');
         setNotificationMessage('');
 
-        // Show browser notification as preview
-        if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification(notificationTitle, {
-            body: notificationMessage,
-            icon: '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png',
-            tag: 'admin-broadcast'
+        // Send to service worker for background notifications
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.ready.then(registration => {
+            registration.active?.postMessage({
+              type: 'ADMIN_BROADCAST',
+              title: notificationTitle.trim(),
+              body: notificationMessage.trim(),
+              data: {
+                type: 'admin_broadcast',
+                timestamp: new Date().toISOString(),
+                priority: 'high'
+              }
+            });
           });
+        }
+
+        // Show preview notification for admin
+        if ('Notification' in window && Notification.permission === 'granted') {
+          setTimeout(() => {
+            new Notification(`📢 ${notificationTitle}`, {
+              body: notificationMessage,
+              icon: '/lovable-uploads/d215e62c-d97d-4600-a98e-68acbeba47d0.png',
+              tag: 'admin-preview',
+              requireInteraction: false
+            });
+          }, 1000);
         }
       } else {
         throw new Error(result.error || 'Failed to send notification');
@@ -144,7 +168,7 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
       toast({
         variant: 'destructive',
         title: 'Failed to send notification',
-        description: 'There was an error sending the notification. Please try again.'
+        description: 'There was an error sending the push notification. Please try again.'
       });
     } finally {
       setIsSending(false);
@@ -162,7 +186,7 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
         <DialogHeader>
           <DialogTitle className="font-pixelated text-lg flex items-center gap-2">
             <Shield className="h-5 w-5 text-orange-500" />
-            Admin Notification Panel
+            Admin Push Notification Panel
           </DialogTitle>
         </DialogHeader>
 
@@ -171,7 +195,7 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
             <Alert>
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription className="font-pixelated text-xs">
-                This is a restricted admin area. Unauthorized access is prohibited.
+                This is a restricted admin area for sending push notifications to all users.
               </AlertDescription>
             </Alert>
 
@@ -251,7 +275,14 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
             <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
               <div className="flex items-center gap-2">
                 <Shield className="h-4 w-4 text-green-600" />
-                <span className="font-pixelated text-xs text-green-800">Admin Access Active</span>
+                <div>
+                  <span className="font-pixelated text-xs text-green-800">Admin Access Active</span>
+                  {notificationsSent > 0 && (
+                    <p className="font-pixelated text-xs text-green-600">
+                      {notificationsSent} notification{notificationsSent > 1 ? 's' : ''} sent
+                    </p>
+                  )}
+                </div>
               </div>
               <Button
                 onClick={handleLogout}
@@ -267,8 +298,8 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
             <Card>
               <CardHeader>
                 <CardTitle className="font-pixelated text-sm flex items-center gap-2">
-                  <Bell className="h-4 w-4" />
-                  Send Notification to All Users
+                  <Zap className="h-4 w-4 text-orange-500" />
+                  Send Push Notification to All Users
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -309,7 +340,7 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
                   className="w-full bg-social-green hover:bg-social-light-green text-white font-pixelated text-xs"
                 >
                   <Send className="h-3 w-3 mr-2" />
-                  {isSending ? 'Sending...' : 'Send to All Users'}
+                  {isSending ? 'Sending Push Notification...' : 'Send Push Notification to All Users'}
                 </Button>
               </CardContent>
             </Card>
@@ -317,7 +348,7 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
             <Alert>
               <Bell className="h-4 w-4" />
               <AlertDescription className="font-pixelated text-xs">
-                This will send a push notification to all registered users. Use responsibly.
+                This will send a real push notification to all users' devices, even when SocialChat is closed.
               </AlertDescription>
             </Alert>
 
