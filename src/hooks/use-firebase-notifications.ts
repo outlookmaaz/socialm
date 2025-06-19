@@ -56,7 +56,7 @@ export function useFirebaseNotifications() {
         }
       });
 
-      // Listen for custom admin broadcast events
+      // Listen for custom admin broadcast events for in-page toast notifications
       const handleAdminBroadcast = (event: CustomEvent) => {
         const { title, body, data } = event.detail;
         
@@ -67,11 +67,26 @@ export function useFirebaseNotifications() {
         });
       };
 
+      // Listen for admin broadcast toast events (works without notification permission)
+      const handleAdminBroadcastToast = (event: CustomEvent) => {
+        const { title, message } = event.detail;
+        
+        // Show toast notification regardless of notification permission
+        toast({
+          title: `📢 ${title}`,
+          description: message,
+          duration: 10000,
+          className: 'border-l-4 border-l-orange-500 bg-orange-50 text-orange-900',
+        });
+      };
+
       window.addEventListener('adminBroadcast', handleAdminBroadcast as EventListener);
+      window.addEventListener('adminBroadcastToast', handleAdminBroadcastToast as EventListener);
 
       return () => {
         unsubscribe();
         window.removeEventListener('adminBroadcast', handleAdminBroadcast as EventListener);
+        window.removeEventListener('adminBroadcastToast', handleAdminBroadcastToast as EventListener);
       };
     } catch (error) {
       console.error('Error initializing Firebase notifications:', error);

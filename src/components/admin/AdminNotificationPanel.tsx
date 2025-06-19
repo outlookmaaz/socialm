@@ -149,6 +149,15 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
           });
         }
 
+        // Dispatch custom event for in-page toast notifications
+        window.dispatchEvent(new CustomEvent('adminBroadcastToast', {
+          detail: {
+            title: notificationTitle.trim(),
+            message: notificationMessage.trim(),
+            timestamp: new Date().toISOString()
+          }
+        }));
+
         // Show preview notification for admin
         if ('Notification' in window && Notification.permission === 'granted') {
           setTimeout(() => {
@@ -314,9 +323,11 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
                     placeholder="Enter notification title"
                     maxLength={50}
                   />
-                  <p className="font-pixelated text-xs text-muted-foreground">
-                    {notificationTitle.length}/50 characters
-                  </p>
+                  <div className="flex justify-between items-center">
+                    <p className="font-pixelated text-xs text-muted-foreground">
+                      {notificationTitle.length}/50 characters
+                    </p>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -329,9 +340,11 @@ export function AdminNotificationPanel({ open, onOpenChange }: AdminNotification
                     placeholder="Enter notification message"
                     maxLength={200}
                   />
-                  <p className="font-pixelated text-xs text-muted-foreground">
-                    {notificationMessage.length}/200 characters
-                  </p>
+                  <div className="flex justify-between items-center">
+                    <p className="font-pixelated text-xs text-muted-foreground">
+                      {notificationMessage.length}/200 characters
+                    </p>
+                  </div>
                 </div>
 
                 <Button

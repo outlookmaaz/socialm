@@ -164,8 +164,23 @@ export const NotificationService = {
         }, 8000);
       }
 
-      // Simulate backend broadcast by dispatching custom event
-      const broadcastEvent = new CustomEvent('adminBroadcast', {
+      // Always dispatch custom event for in-page toast notifications (works without permission)
+      const broadcastEvent = new CustomEvent('adminBroadcastToast', {
+        detail: {
+          title,
+          message: body,
+          data: {
+            ...data,
+            type: 'admin_broadcast',
+            timestamp: new Date().toISOString()
+          }
+        }
+      });
+      
+      window.dispatchEvent(broadcastEvent);
+
+      // Also dispatch the original event for backward compatibility
+      const originalBroadcastEvent = new CustomEvent('adminBroadcast', {
         detail: {
           title,
           body,
@@ -177,7 +192,7 @@ export const NotificationService = {
         }
       });
       
-      window.dispatchEvent(broadcastEvent);
+      window.dispatchEvent(originalBroadcastEvent);
 
       return {
         success: true,
