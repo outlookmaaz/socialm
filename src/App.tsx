@@ -43,7 +43,7 @@ const App = () => {
   useEffect(() => {
     // Apply theme immediately on mount
     const root = window.document.documentElement;
-    root.classList.remove('light', 'dark', 'win95');
+    root.classList.remove('light', 'dark', 'win95', 'modern');
     root.classList.add(theme);
 
     // Apply color theme

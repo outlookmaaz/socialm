@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { supabase } from '@/integrations/supabase/client';
 
-type Theme = 'light' | 'dark' | 'win95';
+type Theme = 'light' | 'dark' | 'win95' | 'modern';
 type ColorTheme = 'green' | 'blue' | 'red' | 'orange' | 'purple';
 
 interface ThemeStore {
@@ -88,7 +88,7 @@ export const useTheme = create<ThemeStore>()(
       colorTheme: 'green',
       setTheme: async (theme) => {
         const root = window.document.documentElement;
-        root.classList.remove('light', 'dark', 'win95');
+        root.classList.remove('light', 'dark', 'win95', 'modern');
         root.classList.add(theme);
         set({ theme });
       },
@@ -103,19 +103,35 @@ export const useTheme = create<ThemeStore>()(
       confirmThemeChange: async (theme, type) => {
         return new Promise((resolve) => {
           const dialog = document.createElement('div');
+          
+          // Special confirmation for modern theme
+          const isModernTheme = theme === 'modern';
+          const confirmationText = isModernTheme 
+            ? `Are you sure you want to switch to the Modern theme? This will change the font across the entire application to a clean, modern typeface similar to popular social media apps.`
+            : `Are you sure you want to change the ${type === 'theme' ? 'theme' : 'color theme'} to ${theme}? This will be saved as your preference.`;
+          
           dialog.innerHTML = `
             <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-              <div class="bg-background p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
-                <h3 class="text-lg font-medium mb-4 font-pixelated">Change ${type === 'theme' ? 'Theme' : 'Color'}</h3>
-                <p class="text-sm text-muted-foreground mb-6 font-pixelated">
-                  Are you sure you want to change the ${type === 'theme' ? 'theme' : 'color theme'} to ${theme}? This will be saved as your preference.
+              <div class="bg-background p-6 rounded-lg shadow-lg max-w-md w-full mx-4 border">
+                <h3 class="text-lg font-medium mb-4 font-pixelated ${isModernTheme ? 'text-blue-600' : ''}">
+                  ${isModernTheme ? '🎨 Switch to Modern Theme' : `Change ${type === 'theme' ? 'Theme' : 'Color'}`}
+                </h3>
+                <p class="text-sm text-muted-foreground mb-6 font-pixelated leading-relaxed">
+                  ${confirmationText}
                 </p>
+                ${isModernTheme ? `
+                  <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                    <p class="text-xs text-blue-800 font-pixelated">
+                      <strong>✨ New Feature:</strong> The Modern theme uses a contemporary font that's easier to read and provides a fresh, clean look across all pages.
+                    </p>
+                  </div>
+                ` : ''}
                 <div class="flex justify-end gap-3">
-                  <button class="px-4 py-2 text-sm font-pixelated bg-muted hover:bg-muted/80 rounded-md" onclick="this.closest('.fixed').remove(); window.resolveTheme(false);">
+                  <button class="px-4 py-2 text-sm font-pixelated bg-muted hover:bg-muted/80 rounded-md transition-colors" onclick="this.closest('.fixed').remove(); window.resolveTheme(false);">
                     Cancel
                   </button>
-                  <button class="px-4 py-2 text-sm font-pixelated bg-primary text-primary-foreground hover:bg-primary/90 rounded-md" onclick="this.closest('.fixed').remove(); window.resolveTheme(true);">
-                    Confirm
+                  <button class="px-4 py-2 text-sm font-pixelated ${isModernTheme ? 'bg-blue-600 hover:bg-blue-700' : 'bg-primary hover:bg-primary/90'} text-white rounded-md transition-colors" onclick="this.closest('.fixed').remove(); window.resolveTheme(true);">
+                    ${isModernTheme ? 'Switch to Modern' : 'Confirm'}
                   </button>
                 </div>
               </div>

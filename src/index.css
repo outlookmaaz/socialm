@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import './styles/win95.css';
 
 @tailwind base;
@@ -97,6 +98,31 @@
     --ring: 212.7 26.8% 83.9%;
   }
 
+  /* Modern Theme */
+  .modern {
+    /* Same color scheme as light theme but with modern font */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --radius: 0.5rem;
+  }
+
   /* Color Theme Classes */
   .theme-blue {
     --social-dark-green: var(--social-dark-blue);
@@ -140,7 +166,7 @@
   }
   
   body {
-    @apply bg-background text-foreground font-pixelated;
+    @apply bg-background text-foreground;
     overflow-x: hidden;
     width: 100vw;
     max-width: 100%;
@@ -157,6 +183,17 @@
     user-select: none;
     touch-action: manipulation;
   }
+
+  /* Default font for all themes except modern */
+  body:not(.modern) {
+    font-family: 'Press Start 2P', cursive;
+  }
+
+  /* Modern theme uses Inter font */
+  .modern body,
+  .modern * {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  }
   
   /* Allow text selection for inputs and textareas */
   input, textarea, [contenteditable] {
@@ -168,7 +205,15 @@
   }
   
   h1, h2, h3, h4, h5, h6, button, label, p, span, div {
-    @apply font-pixelated;
+    /* Default pixelated font for non-modern themes */
+  }
+
+  /* Modern theme overrides */
+  .modern h1, .modern h2, .modern h3, .modern h4, .modern h5, .modern h6, 
+  .modern button, .modern label, .modern p, .modern span, .modern div,
+  .modern input, .modern textarea {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif !important;
+    letter-spacing: normal !important;
   }
 }
 
@@ -177,6 +222,28 @@
   letter-spacing: -0.02em;
   font-size: 11px;
   line-height: 1.4;
+}
+
+/* Modern font class for the new theme */
+.modern .font-pixelated {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif !important;
+  letter-spacing: normal !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  font-weight: 400;
+}
+
+/* Specific font weights for modern theme */
+.modern .font-medium {
+  font-weight: 500 !important;
+}
+
+.modern .font-semibold {
+  font-weight: 600 !important;
+}
+
+.modern .font-bold {
+  font-weight: 700 !important;
 }
 
 .social-gradient {
@@ -205,6 +272,14 @@
   overflow-wrap: break-word;
 }
 
+/* Modern theme message bubbles */
+.modern .message-bubble-sent,
+.modern .message-bubble-received {
+  font-size: 14px !important;
+  line-height: 1.4 !important;
+  font-weight: 400 !important;
+}
+
 /* Navigation tabs */
 .nav-tabs {
   @apply bg-transparent border-none;
@@ -213,6 +288,12 @@
 .nav-tab {
   @apply text-muted-foreground border-b-2 border-transparent transition-all duration-200 data-[state=active]:border-social-green data-[state=active]:text-social-green data-[state=active]:bg-transparent font-pixelated text-xs;
   font-size: 10px;
+}
+
+/* Modern theme navigation */
+.modern .nav-tab {
+  font-size: 14px !important;
+  font-weight: 500 !important;
 }
 
 /* Mobile optimizations - Fixed layout */
@@ -233,16 +314,34 @@
     -ms-user-select: none;
     user-select: none;
   }
+
+  /* Modern theme mobile adjustments */
+  .modern body {
+    font-size: 14px;
+  }
   
   .font-pixelated {
     font-size: 10px;
     line-height: 1.3;
+  }
+
+  /* Modern theme mobile font adjustments */
+  .modern .font-pixelated {
+    font-size: 13px !important;
+    line-height: 1.4 !important;
   }
   
   .message-bubble-sent, .message-bubble-received {
     max-width: 75%;
     font-size: 10px;
     padding: 6px 8px;
+  }
+
+  /* Modern theme mobile message bubbles */
+  .modern .message-bubble-sent,
+  .modern .message-bubble-received {
+    font-size: 13px !important;
+    padding: 8px 12px !important;
   }
   
   /* Fixed mobile layout */
@@ -252,7 +351,7 @@
     overflow: hidden;
   }
   
-  /* Mobile text scaling */
+  /* Mobile text scaling for pixelated font */
   .text-4xl { font-size: 14px; line-height: 1.3; }
   .text-3xl { font-size: 13px; line-height: 1.3; }
   .text-2xl { font-size: 12px; line-height: 1.3; }
@@ -261,6 +360,16 @@
   .text-base { font-size: 10px; line-height: 1.3; }
   .text-sm { font-size: 9px; line-height: 1.2; }
   .text-xs { font-size: 8px; line-height: 1.2; }
+
+  /* Modern theme mobile text scaling */
+  .modern .text-4xl { font-size: 24px !important; line-height: 1.2 !important; }
+  .modern .text-3xl { font-size: 20px !important; line-height: 1.2 !important; }
+  .modern .text-2xl { font-size: 18px !important; line-height: 1.3 !important; }
+  .modern .text-xl { font-size: 16px !important; line-height: 1.3 !important; }
+  .modern .text-lg { font-size: 15px !important; line-height: 1.4 !important; }
+  .modern .text-base { font-size: 14px !important; line-height: 1.4 !important; }
+  .modern .text-sm { font-size: 13px !important; line-height: 1.4 !important; }
+  .modern .text-xs { font-size: 12px !important; line-height: 1.3 !important; }
   
   /* Compact spacing */
   .p-6 { padding: 0.75rem; }
@@ -292,6 +401,13 @@
     font-size: 10px !important;
     padding: 6px 8px !important;
     touch-action: manipulation;
+  }
+
+  /* Modern theme mobile inputs */
+  .modern textarea,
+  .modern input {
+    font-size: 14px !important;
+    padding: 8px 12px !important;
   }
   
   /* Ensure proper spacing for mobile cards */
@@ -346,10 +462,25 @@
   box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.2);
 }
 
+/* Modern theme removes pixel styling */
+.modern .pixel-border {
+  image-rendering: auto;
+  border-radius: 8px;
+}
+
+.modern .pixel-shadow {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
 /* Development banner */
 .dev-banner {
   @apply bg-yellow-100 text-yellow-800 p-1 text-center font-pixelated;
   font-size: 8px;
+}
+
+.modern .dev-banner {
+  font-size: 12px !important;
+  font-weight: 500 !important;
 }
 
 /* Real-time indicators */
