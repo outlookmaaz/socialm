@@ -7,7 +7,8 @@ import {
   Bell, 
   User,
   Menu,
-  LogOut
+  LogOut,
+  Shield
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useEnhancedNotifications } from '@/hooks/use-enhanced-notifications';
+import { AdminNotificationPanel } from '@/components/admin/AdminNotificationPanel';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +48,7 @@ export function MobileHeader() {
   const [user, setUser] = useState<any>(null);
   const [open, setOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
   const { unreadCount } = useEnhancedNotifications();
   const { toast } = useToast();
   
@@ -225,6 +228,21 @@ export function MobileHeader() {
                   </div>
                 </div>
 
+                {/* Admin Panel Access */}
+                <div className="p-4 border-t">
+                  <Button
+                    onClick={() => {
+                      setOpen(false);
+                      setShowAdminPanel(true);
+                    }}
+                    variant="outline"
+                    className="w-full justify-start font-pixelated text-xs hover-scale"
+                  >
+                    <Shield className="h-4 w-4 mr-2" />
+                    Admin Panel
+                  </Button>
+                </div>
+
                 {/* Footer with logout */}
                 <div className="p-4 border-t mt-auto shrink-0">
                   <Button 
@@ -303,6 +321,14 @@ export function MobileHeader() {
               </Link>
               <DropdownMenuSeparator />
               <DropdownMenuItem 
+                onClick={() => setShowAdminPanel(true)}
+                className="font-pixelated hover-scale"
+              >
+                <Shield className="mr-2 h-4 w-4" />
+                Admin Panel
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
                 onClick={() => setShowLogoutConfirm(true)} 
                 className="text-destructive font-pixelated hover-scale"
               >
@@ -330,6 +356,12 @@ export function MobileHeader() {
           ))}
         </nav>
       </header>
+
+      {/* Admin Notification Panel */}
+      <AdminNotificationPanel 
+        open={showAdminPanel} 
+        onOpenChange={setShowAdminPanel} 
+      />
 
       {/* Logout Confirmation Dialog */}
       <AlertDialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
